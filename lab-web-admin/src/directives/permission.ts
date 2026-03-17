@@ -37,18 +37,16 @@ export const role: Directive = {
     const { value } = binding
     const userStore = useUserStore()
 
-    if (value && userStore.userInfo) {
-      const roles = Array.isArray(value) ? value : [value]
-      const hasRole = roles.some(role => 
-        userStore.userInfo?.roles.includes(role)
-      )
-
-      if (!hasRole) {
-        // 移除元素
-        el.parentNode?.removeChild(el)
-      }
-    } else {
+    if (!value) {
       throw new Error('需要指定角色，如 v-role="[\'admin\']"')
+    }
+
+    const roles = Array.isArray(value) ? value : [value]
+    const hasRole = userStore.hasRole(roles)
+
+    if (!hasRole) {
+      // 移除元素
+      el.parentNode?.removeChild(el)
     }
   }
 }

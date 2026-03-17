@@ -104,9 +104,14 @@ const handleCommand = async (command: string) => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-    await authApi.logout()
-    userStore.logout()
-    router.push('/login')
+    try {
+      await authApi.logout()
+    } catch (error) {
+      console.warn('退出登录接口调用失败，将执行本地登出:', error)
+    } finally {
+      userStore.logout()
+      router.push('/login')
+    }
   } else if (command === 'profile') {
     router.push('/profile')
   }
