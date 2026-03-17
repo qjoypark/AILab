@@ -1,0 +1,48 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: lab-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+      config:
+        server-addr: localhost:8848
+        file-extension: yml
+        import-check:
+          enabled: false
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: user-service
+          uri: lb://lab-service-user
+          predicates:
+            - Path=/api/v1/auth/**,/api/v1/system/**
+        - id: material-service
+          uri: lb://lab-service-material
+          predicates:
+            - Path=/api/v1/materials/**,/api/v1/suppliers/**,/api/v1/categories/**
+        - id: inventory-service
+          uri: lb://lab-service-inventory
+          predicates:
+            - Path=/api/v1/inventory/**,/api/v1/alerts/**
+        - id: approval-service
+          uri: lb://lab-service-approval
+          predicates:
+            - Path=/api/v1/applications/**,/api/v1/hazardous/**,/api/v1/notifications/**
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
+    timeout: 3000ms
+
+logging:
+  level:
+    com.lab: debug
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
