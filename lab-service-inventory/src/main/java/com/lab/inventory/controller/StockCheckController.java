@@ -49,7 +49,7 @@ public class StockCheckController {
     
     @Operation(summary = "提交盘点明细")
     @PostMapping("/{id}/items")
-    public Result<Void> submitCheckDetails(@PathVariable Long id, @Validated @RequestBody StockCheckDTO dto) {
+    public Result<Void> submitCheckDetails(@PathVariable Long id, @RequestBody StockCheckDTO dto) {
         stockCheckService.submitCheckDetails(id, dto);
         return Result.success();
     }

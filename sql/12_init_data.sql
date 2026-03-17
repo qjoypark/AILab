@@ -9,7 +9,7 @@ INSERT INTO sys_role (role_code, role_name, description) VALUES
 
 -- 初始化管理员用户 (密码: admin123, 使用BCrypt加密)
 INSERT INTO sys_user (username, password, real_name, user_type, department, status, safety_cert_status) VALUES
-('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '系统管理员', 1, '信息中心', 1, 1);
+('admin', '$2a$10$f/dwSmH8z8jE494vt4L01uISWrtWP/bo1EVQuwOwkaEXMnlmOZRyS', '系统管理员', 1, '信息中心', 1, 1);
 
 -- 关联管理员角色
 INSERT INTO sys_user_role (user_id, role_id) VALUES (1, 1);

@@ -3,11 +3,11 @@ package com.lab.user.property;
 import com.lab.common.entity.AuditLog;
 import com.lab.user.dto.RoleDTO;
 import com.lab.user.dto.UserDTO;
-import com.lab.user.entity.Role;
-import com.lab.user.entity.User;
+import com.lab.user.entity.SysRole;
+import com.lab.user.entity.SysUser;
 import com.lab.user.mapper.AuditLogMapper;
-import com.lab.user.mapper.RoleMapper;
-import com.lab.user.mapper.UserMapper;
+import com.lab.user.mapper.SysRoleMapper;
+import com.lab.user.mapper.SysUserMapper;
 import com.lab.user.service.RoleService;
 import com.lab.user.service.UserService;
 import net.jqwik.api.*;
@@ -44,13 +44,13 @@ public class AuditLogPropertyTest {
     private UserService userService;
     
     @Autowired
-    private UserMapper userMapper;
+    private SysUserMapper userMapper;
     
     @Autowired
     private RoleService roleService;
     
     @Autowired
-    private RoleMapper roleMapper;
+    private SysRoleMapper roleMapper;
     
     /**
      * 属性测试：敏感操作必须被记录到审计日志

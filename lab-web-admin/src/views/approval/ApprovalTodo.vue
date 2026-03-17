@@ -1,0 +1,195 @@
+<template>
+  <div class="approval-todo">
+    <el-card>
+      <template #header>
+        <span>待审批事项</span>
+      </template>
+
+      <!-- 待审批列表 -->
+      <el-table :data="todoList" border stripe v-loading="loading">
+        <el-table-column prop="applicationCode" label="申请单号" width="180" />
+        <el-table-column prop="applicantName" label="申请人" width="100" />
+        <el-table-column prop="department" label="部门" width="120" />
+        <el-table-column prop="applicationPurpose" label="用途" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="currentApprovalLevel" label="当前审批级别" width="120" align="center">
+          <template #default="{ row }">
+            第 {{ row.currentApprovalLevel }} 级
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdTime" label="申请时间" width="180" />
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="handleApprove(row)">审批</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <!-- 审批对话框 -->
+    <el-dialog
+      v-model="approvalDialogVisible"
+      title="审批处理"
+      width="900px"
+      @close="handleDialogClose"
+    >
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="申请单号">{{ currentApplication?.applicationCode }}</el-descriptions-item>
+        <el-descriptions-item label="申请人">{{ currentApplication?.applicantName }}</el-descriptions-item>
+        <el-descriptions-item label="部门">{{ currentApplication?.department }}</el-descriptions-item>
+        <el-descriptions-item label="申请时间">{{ currentApplication?.createdTime }}</el-descriptions-item>
+        <el-descriptions-item label="用途" :span="2">{{ currentApplication?.applicationPurpose }}</el-descriptions-item>
+        <el-descriptions-item label="使用地点">{{ currentApplication?.usageLocation }}</el-descriptions-item>
+        <el-descriptions-item label="期望日期">{{ currentApplication?.expectedDate }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-divider>申请明细</el-divider>
+
+      <el-table :data="currentApplication?.items" border>
+        <el-table-column prop="materialCode" label="药品编码" width="120" />
+        <el-table-column prop="materialName" label="药品名称" min-width="150" />
+        <el-table-column prop="requestedQuantity" label="申请数量" width="100" align="right" />
+        <el-table-column prop="unit" label="单位" width="80" />
+        <el-table-column label="批准数量" width="150">
+          <template #default="{ row }">
+            <el-input-number
+              v-model="row.approvedQuantity"
+              :min="0"
+              :max="row.requestedQuantity"
+              :precision="2"
+              size="small"
+              style="width: 100%"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column prop="usagePurpose" label="用途说明" min-width="150" />
+      </el-table>
+
+      <el-divider>审批意见</el-divider>
+
+      <el-form
+        ref="formRef"
+        :model="approvalForm"
+        :rules="rules"
+        label-width="100px"
+      >
+        <el-form-item label="审批结果" prop="approvalResult">
+          <el-radio-group v-model="approvalForm.approvalResult">
+            <el-radio :label="1">通过</el-radio>
+            <el-radio :label="2">拒绝</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="审批意见" prop="approvalOpinion">
+          <el-input
+            v-model="approvalForm.approvalOpinion"
+            type="textarea"
+            :rows="3"
+            placeholder="请填写审批意见"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="approvalDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmitApproval" :loading="submitting">提交审批</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, FormInstance, FormRules } from 'element-plus'
+import { approvalApi } from '@/api/approval'
+import type { MaterialApplication, ApprovalRequest } from '@/types/approval'
+
+const loading = ref(false)
+const submitting = ref(false)
+const approvalDialogVisible = ref(false)
+const formRef = ref<FormInstance>()
+const todoList = ref<MaterialApplication[]>([])
+const currentApplication = ref<MaterialApplication>()
+
+const approvalForm = reactive<ApprovalRequest>({
+  approvalResult: 1,
+  approvalOpinion: '',
+  itemApprovals: []
+})
+
+const rules: FormRules = {
+  approvalResult: [{ required: true, message: '请选择审批结果', trigger: 'change' }]
+}
+
+const loadTodoList = async () => {
+  loading.value = true
+  try {
+    todoList.value = await approvalApi.getTodoList()
+  } catch (error) {
+    console.error('加载待审批列表失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleApprove = async (row: MaterialApplication) => {
+  try {
+    currentApplication.value = await approvalApi.getApplicationById(row.id)
+    
+    // 初始化批准数量为申请数量
+    if (currentApplication.value.items) {
+      currentApplication.value.items.forEach(item => {
+        if (!item.approvedQuantity) {
+          item.approvedQuantity = item.requestedQuantity
+        }
+      })
+    }
+    
+    // 重置表单
+    approvalForm.approvalResult = 1
+    approvalForm.approvalOpinion = ''
+    
+    approvalDialogVisible.value = true
+  } catch (error) {
+    console.error('加载申请详情失败:', error)
+  }
+}
+
+const handleSubmitApproval = async () => {
+  if (!formRef.value || !currentApplication.value) return
+  
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return
+    
+    // 构建审批数据
+    approvalForm.itemApprovals = currentApplication.value!.items?.map(item => ({
+      itemId: item.id!,
+      approvedQuantity: item.approvedQuantity || 0
+    })) || []
+    
+    submitting.value = true
+    try {
+      await approvalApi.approveApplication(currentApplication.value.id, approvalForm)
+      ElMessage.success('审批提交成功')
+      approvalDialogVisible.value = false
+      loadTodoList()
+    } catch (error) {
+      console.error('审批提交失败:', error)
+    } finally {
+      submitting.value = false
+    }
+  })
+}
+
+const handleDialogClose = () => {
+  formRef.value?.resetFields()
+}
+
+onMounted(() => {
+  loadTodoList()
+})
+</script>
+
+<style scoped>
+.approval-todo {
+  padding: 20px;
+}
+</style>

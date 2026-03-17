@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(TodoController.class)
 @DisplayName("待办事项控制器测试")
-class TodoControllerTest {
+class TodoControllerTest extends BaseControllerTest {
     
     @Autowired
     private MockMvc mockMvc;

@@ -79,14 +79,16 @@ const handleLogin = async () => {
     loading.value = true
     try {
       const res = await authApi.login(loginForm)
-      userStore.setToken(res.accessToken, res.refreshToken)
+      userStore.setToken(res.token, res.refreshToken)
       userStore.setUserInfo(res.userInfo)
-      userStore.setPermissions(res.permissions)
+      userStore.setPermissions(res.permissions ?? res.userInfo?.permissions ?? [])
       if (res.menus) {
         userStore.setMenuList(res.menus)
+      } else {
+        userStore.setMenuList([])
       }
       ElMessage.success('登录成功')
-      router.push('/')
+      await router.replace('/')
     } catch (error) {
       console.error('登录失败:', error)
     } finally {

@@ -99,4 +99,16 @@ public class UserController {
         List<Long> roleIds = userService.getUserRoleIds(id);
         return Result.success(roleIds);
     }
+
+    /**
+     * 鍒嗛厤鐢ㄦ埛瑙掕壊
+     */
+    @Operation(summary = "鍒嗛厤鐢ㄦ埛瑙掕壊")
+    @PostMapping("/{id}/roles")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('CENTER_ADMIN')")
+    @AuditLog(operationType = "UPDATE", businessType = "USER_ROLE", description = "鍒嗛厤鐢ㄦ埛瑙掕壊")
+    public Result<Void> assignUserRoles(@PathVariable Long id, @RequestBody List<Long> roleIds) {
+        userService.assignUserRoles(id, roleIds);
+        return Result.success();
+    }
 }

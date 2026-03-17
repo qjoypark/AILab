@@ -7,9 +7,20 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
+        fail-fast: ${NACOS_DISCOVERY_FAIL_FAST:false}
       config:
-        server-addr: localhost:8848
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        username: ${NACOS_USERNAME:}
+        password: ${NACOS_PASSWORD:}
         file-extension: yml
         import-check:
           enabled: false
@@ -26,15 +37,15 @@ spring:
         - id: material-service
           uri: lb://lab-service-material
           predicates:
-            - Path=/api/v1/materials/**,/api/v1/suppliers/**,/api/v1/categories/**
+            - Path=/api/v1/materials/**,/api/v1/suppliers/**,/api/v1/material-categories/**,/api/v1/files/**
         - id: inventory-service
           uri: lb://lab-service-inventory
           predicates:
-            - Path=/api/v1/inventory/**,/api/v1/alerts/**
+            - Path=/api/v1/inventory/**,/api/v1/alerts/**,/api/v1/reports/**,/api/v1/todo/**,/api/v1/notifications/**,/api/v1/hazardous/ledger/**
         - id: approval-service
           uri: lb://lab-service-approval
           predicates:
-            - Path=/api/v1/applications/**,/api/v1/hazardous/**,/api/v1/notifications/**
+            - Path=/api/v1/applications/**,/api/v1/hazardous/**
   redis:
     host: localhost
     port: 6379

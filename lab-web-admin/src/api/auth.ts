@@ -11,7 +11,11 @@ export const authApi = {
   },
 
   refreshToken(refreshToken: string) {
-    return request.post('/auth/refresh', { refreshToken })
+    return request.post('/auth/refresh', null, {
+      headers: {
+        Authorization: `Bearer ${refreshToken}`
+      }
+    })
   },
 
   getCurrentUser() {

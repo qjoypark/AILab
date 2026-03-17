@@ -1,5 +1,5 @@
 -- 角色权限关联表
-CREATE TABLE sys_role_permission (
+CREATE TABLE IF NOT EXISTS sys_role_permission (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'ID',
     role_id BIGINT NOT NULL COMMENT '角色ID',
     permission_id BIGINT NOT NULL COMMENT '权限ID',

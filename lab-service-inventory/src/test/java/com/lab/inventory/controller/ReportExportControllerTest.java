@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 报表导出控制器测试
  */
 @WebMvcTest(ReportController.class)
-class ReportExportControllerTest {
+class ReportExportControllerTest extends BaseControllerTest {
     
     @Autowired
     private MockMvc mockMvc;

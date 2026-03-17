@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * **验证需求: 5.7, 10.2**
  */
 @WebMvcTest(ReportController.class)
-class ConsumptionStatisticsControllerTest {
+class ConsumptionStatisticsControllerTest extends BaseControllerTest {
     
     @Autowired
     private MockMvc mockMvc;

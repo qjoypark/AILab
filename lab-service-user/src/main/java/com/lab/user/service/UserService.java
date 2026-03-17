@@ -139,8 +139,20 @@ public class UserService {
      * 删除用户（逻辑删除）
      */
     public void deleteUser(Long id) {
-        SysUser user = getUserById(id);
+        getUserById(id);
         userMapper.deleteById(id);
+    }
+
+    /**
+     * 鍗曠嫭鍒嗛厤鐢ㄦ埛瑙掕壊
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void assignUserRoles(Long userId, List<Long> roleIds) {
+        getUserById(userId);
+        jdbcTemplate.update("DELETE FROM sys_user_role WHERE user_id = ?", userId);
+        if (roleIds != null && !roleIds.isEmpty()) {
+            assignRoles(userId, roleIds);
+        }
     }
     
     /**

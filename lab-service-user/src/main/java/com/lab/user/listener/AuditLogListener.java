@@ -21,8 +21,9 @@ public class AuditLogListener {
     
     /**
      * 监听审计日志队列
+     * 暂时禁用，因为RabbitMQ队列未创建
      */
-    @RabbitListener(queues = RabbitMQConfig.AUDIT_LOG_QUEUE)
+    // @RabbitListener(queues = RabbitMQConfig.AUDIT_LOG_QUEUE)
     public void handleAuditLog(AuditLog auditLog) {
         log.debug("Received audit log message: {}", auditLog);
         try {

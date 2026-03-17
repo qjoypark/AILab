@@ -2,6 +2,7 @@ package com.lab.approval.service;
 
 import com.lab.approval.dto.HazardousReturnRequest;
 import com.lab.approval.entity.HazardousUsageRecord;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import java.math.BigDecimal;
 
@@ -9,6 +10,11 @@ import java.math.BigDecimal;
  * 危化品使用记录服务接口
  */
 public interface HazardousUsageRecordService {
+
+    /**
+     * 鍒嗛〉鏌ヨ鍗卞寲鍝佷娇鐢ㄨ褰?
+     */
+    Page<HazardousUsageRecord> listUsageRecords(int page, int size, Integer status, String keyword);
     
     /**
      * 创建危化品使用记录

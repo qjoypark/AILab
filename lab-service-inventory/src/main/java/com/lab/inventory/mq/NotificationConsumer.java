@@ -23,10 +23,11 @@ public class NotificationConsumer {
     /**
      * 消费通知消息
      * 将消息保存到数据库，并执行推送操作
+     * 暂时禁用，因为RabbitMQ队列未创建
      * 
      * @param message 通知消息
      */
-    @RabbitListener(queues = RabbitMQConfig.NOTIFICATION_QUEUE)
+    // @RabbitListener(queues = RabbitMQConfig.NOTIFICATION_QUEUE)
     public void handleNotification(NotificationMessage message) {
         try {
             log.info("接收到通知消息: receiverId={}, type={}, title={}", 

@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(HazardousUsageRecordController.class)
 @DisplayName("危化品归还控制器测试")
-class HazardousReturnControllerTest {
+class HazardousReturnControllerTest extends BaseControllerTest {
     
     @Autowired
     private MockMvc mockMvc;

@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(ReportController.class)
 @DisplayName("报表控制器测试")
-class ReportControllerTest {
+class ReportControllerTest extends BaseControllerTest {
     
     @Autowired
     private MockMvc mockMvc;

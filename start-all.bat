@@ -1,33 +1,53 @@
 @echo off
+setlocal EnableDelayedExpansion
 chcp 65001 >nul
+
 echo =========================================
-echo 智慧实验室管理系统 - 启动脚本
+echo Smart Lab Management System - Start Script
 echo =========================================
 
 echo.
-echo 1. 启动基础设施 (MySQL, Redis, RabbitMQ, MinIO, Nacos)...
+echo 1. Starting infrastructure (MySQL, Redis, RabbitMQ, MinIO, Nacos)...
 docker-compose up -d
+if errorlevel 1 (
+  echo.
+  echo ERROR: docker-compose start failed.
+  exit /b 1
+)
 
-echo 等待服务启动完成...
-timeout /t 30 /nobreak >nul
+echo.
+echo 2. Waiting for Nacos to become healthy...
+set "NACOS_READY=0"
+for /L %%i in (1,1,120) do (
+  for /f "delims=" %%a in ('curl -s --max-time 2 http://localhost:8848/nacos/v1/ns/operator/metrics 2^>nul') do (
+    echo %%a | findstr /C:"\"status\":\"UP\"" >nul && set "NACOS_READY=1"
+  )
+  if "!NACOS_READY!"=="1" goto nacos_ready
+  echo [%%i/120] Waiting Nacos...
+  timeout /t 2 /nobreak >nul
+)
+
+echo.
+echo ERROR: Nacos is not healthy after 240 seconds.
+echo Please run: docker logs -f lab-nacos
+exit /b 1
+
+:nacos_ready
+echo Nacos is healthy.
 
 echo.
 echo =========================================
-echo 基础设施启动完成！
+echo Infrastructure Ready
 echo =========================================
 echo.
-echo 服务访问地址:
-echo - MySQL: localhost:3306 (用户名: root, 密码: root)
+echo Service addresses:
+echo - MySQL: localhost:3306 (root/root)
 echo - Redis: localhost:6379
-echo - RabbitMQ管理界面: http://localhost:15672 (guest/guest)
-echo - MinIO控制台: http://localhost:9001 (minioadmin/minioadmin)
-echo - Nacos控制台: http://localhost:8848/nacos (nacos/nacos)
+echo - RabbitMQ: http://localhost:15672 (guest/guest)
+echo - MinIO: http://localhost:9001 (minioadmin/minioadmin)
+echo - Nacos: http://localhost:8848/nacos (nacos/nacos)
 echo.
-echo =========================================
-echo 提示: 现在可以启动微服务应用
-echo =========================================
-echo.
-echo 启动命令:
+echo Start microservices:
 echo   cd lab-gateway ^&^& mvn spring-boot:run
 echo   cd lab-service-user ^&^& mvn spring-boot:run
 echo   cd lab-service-material ^&^& mvn spring-boot:run

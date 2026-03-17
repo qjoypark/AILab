@@ -2,7 +2,6 @@ import { computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import type { MenuItem } from '@/types/user'
 
-// 默认菜单配置（当后端未返回菜单时使用）
 const defaultMenus: MenuItem[] = [
   {
     id: 1,
@@ -18,21 +17,20 @@ const defaultMenus: MenuItem[] = [
     name: 'System',
     title: '系统管理',
     icon: 'Setting',
-    meta: { title: '系统管理', icon: 'Setting', permissions: ['system:user:view', 'system:role:view'] },
     children: [
       {
         id: 21,
         path: '/system/users',
-        name: 'SystemUsers',
+        name: 'UserManagement',
         title: '用户管理',
-        meta: { title: '用户管理', permissions: ['system:user:view'] }
+        meta: { title: '用户管理', permissions: ['system:user:list'] }
       },
       {
         id: 22,
         path: '/system/roles',
-        name: 'SystemRoles',
+        name: 'RoleManagement',
         title: '角色管理',
-        meta: { title: '角色管理', permissions: ['system:role:view'] }
+        meta: { title: '角色管理', permissions: ['system:role:list'] }
       }
     ]
   },
@@ -40,30 +38,15 @@ const defaultMenus: MenuItem[] = [
     id: 3,
     path: '/materials',
     name: 'Materials',
-    title: '药品管理',
+    title: '物资管理',
     icon: 'Box',
-    meta: { title: '药品管理', icon: 'Box', permissions: ['material:view'] },
     children: [
       {
         id: 31,
         path: '/materials',
         name: 'MaterialList',
-        title: '药品列表',
-        meta: { title: '药品列表', permissions: ['material:view'] }
-      },
-      {
-        id: 32,
-        path: '/materials/categories',
-        name: 'MaterialCategories',
-        title: '分类管理',
-        meta: { title: '分类管理', permissions: ['material:category:view'] }
-      },
-      {
-        id: 33,
-        path: '/suppliers',
-        name: 'Suppliers',
-        title: '供应商管理',
-        meta: { title: '供应商管理', permissions: ['supplier:view'] }
+        title: '物资列表',
+        meta: { title: '物资列表', permissions: ['material:list'] }
       }
     ]
   },
@@ -73,66 +56,57 @@ const defaultMenus: MenuItem[] = [
     name: 'Inventory',
     title: '库存管理',
     icon: 'Goods',
-    meta: { title: '库存管理', icon: 'Goods', permissions: ['inventory:view'] },
     children: [
       {
         id: 41,
         path: '/inventory/stock',
-        name: 'InventoryStock',
+        name: 'StockList',
         title: '库存查询',
-        meta: { title: '库存查询', permissions: ['inventory:view'] }
+        meta: { title: '库存查询', permissions: ['inventory:stock:list'] }
       },
       {
         id: 42,
         path: '/inventory/stock-in',
-        name: 'StockIn',
+        name: 'StockInManagement',
         title: '入库管理',
-        meta: { title: '入库管理', permissions: ['inventory:in:view'] }
+        meta: { title: '入库管理', permissions: ['inventory:stock-in:list'] }
       },
       {
         id: 43,
         path: '/inventory/stock-out',
-        name: 'StockOut',
+        name: 'StockOutManagement',
         title: '出库管理',
-        meta: { title: '出库管理', permissions: ['inventory:out:view'] }
+        meta: { title: '出库管理', permissions: ['inventory:stock-out:list'] }
       },
       {
         id: 44,
         path: '/inventory/stock-check',
-        name: 'StockCheck',
+        name: 'StockCheckManagement',
         title: '库存盘点',
-        meta: { title: '库存盘点', permissions: ['inventory:check:view'] }
+        meta: { title: '库存盘点', permissions: ['inventory:stock-check:list'] }
       }
     ]
   },
   {
     id: 5,
-    path: '/applications',
-    name: 'Applications',
+    path: '/approval',
+    name: 'Approval',
     title: '申请审批',
     icon: 'Document',
-    meta: { title: '申请审批', icon: 'Document', permissions: ['application:view'] },
     children: [
       {
         id: 51,
         path: '/applications',
         name: 'ApplicationList',
         title: '领用申请',
-        meta: { title: '领用申请', permissions: ['application:view'] }
+        meta: { title: '领用申请', permissions: ['application:list'] }
       },
       {
         id: 52,
-        path: '/applications/my',
-        name: 'MyApplications',
-        title: '我的申请',
-        meta: { title: '我的申请' }
-      },
-      {
-        id: 53,
-        path: '/applications/pending',
-        name: 'PendingApplications',
-        title: '待审批',
-        meta: { title: '待审批', permissions: ['application:approve'] }
+        path: '/approval/todo',
+        name: 'ApprovalTodo',
+        title: '待审批事项',
+        meta: { title: '待审批事项', permissions: ['application:approve'] }
       }
     ]
   },
@@ -142,24 +116,16 @@ const defaultMenus: MenuItem[] = [
     name: 'Hazardous',
     title: '危化品管理',
     icon: 'Warning',
-    meta: { title: '危化品管理', icon: 'Warning', permissions: ['hazardous:view'] },
     children: [
       {
         id: 61,
-        path: '/hazardous/materials',
-        name: 'HazardousMaterials',
-        title: '危化品列表',
-        meta: { title: '危化品列表', permissions: ['hazardous:view'] }
+        path: '/hazardous/usage-records',
+        name: 'UsageRecordList',
+        title: '使用记录',
+        meta: { title: '使用记录', permissions: ['hazardous:usage:list'] }
       },
       {
         id: 62,
-        path: '/hazardous/usage',
-        name: 'HazardousUsage',
-        title: '使用记录',
-        meta: { title: '使用记录', permissions: ['hazardous:usage:view'] }
-      },
-      {
-        id: 63,
         path: '/hazardous/ledger',
         name: 'HazardousLedger',
         title: '危化品台账',
@@ -169,63 +135,24 @@ const defaultMenus: MenuItem[] = [
   },
   {
     id: 7,
-    path: '/alerts',
-    name: 'Alerts',
+    path: '/notify',
+    name: 'Notify',
     title: '预警通知',
     icon: 'Bell',
-    meta: { title: '预警通知', icon: 'Bell', permissions: ['alert:view'] },
     children: [
       {
         id: 71,
         path: '/alerts',
         name: 'AlertList',
-        title: '预警列表',
-        meta: { title: '预警列表', permissions: ['alert:view'] }
+        title: '预警管理',
+        meta: { title: '预警管理', permissions: ['alert:list'] }
       },
       {
         id: 72,
         path: '/notifications',
-        name: 'Notifications',
+        name: 'MessageCenter',
         title: '消息中心',
         meta: { title: '消息中心' }
-      },
-      {
-        id: 73,
-        path: '/todos',
-        name: 'Todos',
-        title: '待办事项',
-        meta: { title: '待办事项' }
-      }
-    ]
-  },
-  {
-    id: 8,
-    path: '/reports',
-    name: 'Reports',
-    title: '报表统计',
-    icon: 'DataAnalysis',
-    meta: { title: '报表统计', icon: 'DataAnalysis', permissions: ['report:view'] },
-    children: [
-      {
-        id: 81,
-        path: '/reports/stock-summary',
-        name: 'StockSummary',
-        title: '库存汇总',
-        meta: { title: '库存汇总', permissions: ['report:stock:view'] }
-      },
-      {
-        id: 82,
-        path: '/reports/consumption',
-        name: 'ConsumptionReport',
-        title: '消耗统计',
-        meta: { title: '消耗统计', permissions: ['report:consumption:view'] }
-      },
-      {
-        id: 83,
-        path: '/reports/audit-logs',
-        name: 'AuditLogs',
-        title: '审计日志',
-        meta: { title: '审计日志', permissions: ['report:audit:view'] }
       }
     ]
   }
@@ -234,34 +161,30 @@ const defaultMenus: MenuItem[] = [
 export function useMenu() {
   const userStore = useUserStore()
 
-  // 过滤菜单：根据权限过滤
   const filterMenus = (menus: MenuItem[]): MenuItem[] => {
-    return menus.filter(menu => {
-      // 如果菜单有权限要求，检查用户是否有权限
-      if (menu.meta?.permissions && menu.meta.permissions.length > 0) {
-        if (!userStore.hasAnyPermission(menu.meta.permissions)) {
-          return false
+    return menus
+      .map(menu => {
+        const cloned: MenuItem = {
+          ...menu,
+          children: menu.children ? filterMenus(menu.children) : undefined
         }
-      }
+        return cloned
+      })
+      .filter(menu => {
+        const permissions = menu.meta?.permissions ?? []
+        const hasMenuPermission = permissions.length === 0 || userStore.hasAnyPermission(permissions)
 
-      // 递归过滤子菜单
-      if (menu.children && menu.children.length > 0) {
-        menu.children = filterMenus(menu.children)
-        // 如果所有子菜单都被过滤掉了，也过滤掉父菜单
-        if (menu.children.length === 0) {
-          return false
+        if (menu.children && menu.children.length > 0) {
+          return hasMenuPermission && menu.children.length > 0
         }
-      }
 
-      return true
-    })
+        return hasMenuPermission
+      })
   }
 
-  // 获取可访问的菜单列表
   const accessibleMenus = computed(() => {
-    // 优先使用后端返回的菜单
     const menus = userStore.menuList.length > 0 ? userStore.menuList : defaultMenus
-    return filterMenus(JSON.parse(JSON.stringify(menus)))
+    return filterMenus(menus)
   })
 
   return {
