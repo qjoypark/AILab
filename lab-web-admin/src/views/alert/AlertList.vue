@@ -228,7 +228,8 @@ const handleProcess = (row: AlertRecord) => {
 }
 
 const handleSubmitProcess = async () => {
-  if (!formRef.value || !currentAlert.value) return
+  const alert = currentAlert.value
+  if (!formRef.value || !alert) return
 
   await formRef.value.validate(async (valid) => {
     if (!valid) return
@@ -241,7 +242,7 @@ const handleSubmitProcess = async () => {
 
     submitting.value = true
     try {
-      await alertApi.handleAlert(currentAlert.value.id, userId, processForm.handleAction)
+      await alertApi.handleAlert(alert.id, userId, processForm.handleAction)
       ElMessage.success('处理成功')
       processDialogVisible.value = false
       loadAlertList()

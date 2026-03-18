@@ -205,7 +205,7 @@ const rules: FormRules = {
   actualUsedQuantity: [
     { required: true, message: '请输入实际使用量', trigger: 'blur' },
     {
-      validator: (rule, value, callback) => {
+      validator: (_rule, value, callback) => {
         if (value + returnForm.returnedQuantity + returnForm.wasteQuantity !== currentRecord.value?.receivedQuantity) {
           callback(new Error('实际使用量 + 归还数量 + 废弃数量 必须等于领用数量'))
         } else {

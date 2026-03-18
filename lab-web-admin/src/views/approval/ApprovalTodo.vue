@@ -154,20 +154,21 @@ const handleApprove = async (row: MaterialApplication) => {
 }
 
 const handleSubmitApproval = async () => {
-  if (!formRef.value || !currentApplication.value) return
+  const application = currentApplication.value
+  if (!formRef.value || !application) return
   
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     
     // 构建审批数据
-    approvalForm.itemApprovals = currentApplication.value!.items?.map(item => ({
+    approvalForm.itemApprovals = application.items?.map(item => ({
       itemId: item.id!,
       approvedQuantity: item.approvedQuantity || 0
     })) || []
     
     submitting.value = true
     try {
-      await approvalApi.approveApplication(currentApplication.value.id, approvalForm)
+      await approvalApi.approveApplication(application.id, approvalForm)
       ElMessage.success('审批提交成功')
       approvalDialogVisible.value = false
       loadTodoList()

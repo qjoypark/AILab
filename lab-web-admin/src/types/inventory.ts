@@ -81,6 +81,8 @@ export interface StockOut {
   warehouseId: number
   warehouseName?: string
   stockOutType: number // 1-领用出库 2-报废出库 3-盘亏出库
+  operatorId?: number
+  operatorName?: string
   applicationId?: number
   totalAmount?: number
   status: number // 0-待确认 1-已确认

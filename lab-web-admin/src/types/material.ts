@@ -11,6 +11,7 @@ export interface Material {
   supplierId?: number
   supplierName?: string
   unitPrice?: number
+  safetyStock?: number
   imageUrl?: string
   casNumber?: string
   dangerCategory?: string
