@@ -12,6 +12,20 @@ export interface MaterialApplication {
   createdTime?: string
   items?: MaterialApplicationItem[]
   approvalRecords?: ApprovalRecord[]
+  stockOutFlowStatus?: number
+  stockOutFlowStatusName?: string
+  stockOutOrderNos?: string
+  stockOutOrders?: StockOutOrderInfo[]
+}
+
+export interface StockOutOrderInfo {
+  id: number
+  outOrderNo: string
+  warehouseId?: number
+  warehouseName?: string
+  status?: number
+  statusName?: string
+  createdTime?: string
 }
 
 export interface MaterialApplicationItem {
@@ -22,6 +36,7 @@ export interface MaterialApplicationItem {
   materialName?: string
   materialType?: number
   requestedQuantity: number
+  availableStock?: number
   approvedQuantity?: number
   unit?: string
   usagePurpose?: string

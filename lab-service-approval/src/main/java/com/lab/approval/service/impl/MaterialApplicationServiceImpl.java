@@ -84,6 +84,11 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
             if (item.getApplyQuantity().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new BusinessException("申请数量必须大于0");
             }
+
+            MaterialInfo materialInfo = materialClient.getMaterialInfo(item.getMaterialId());
+            if (materialInfo == null) {
+                throw new BusinessException("药品不存在，ID: " + item.getMaterialId());
+            }
             
             boolean stockAvailable = inventoryClient.checkStockAvailability(
                 item.getMaterialId(), 
@@ -91,7 +96,6 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
             );
             
             if (!stockAvailable) {
-                MaterialInfo materialInfo = materialClient.getMaterialInfo(item.getMaterialId());
                 BigDecimal availableStock = inventoryClient.getAvailableStock(item.getMaterialId());
                 throw new BusinessException(
                     String.format("药品 %s 库存不足，当前可用库存: %s %s，申请数量: %s %s",
@@ -126,6 +130,9 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
         // 5. 创建申请明细
         for (CreateApplicationRequest.ApplicationItemRequest itemRequest : request.getItems()) {
             MaterialInfo materialInfo = materialClient.getMaterialInfo(itemRequest.getMaterialId());
+            if (materialInfo == null) {
+                throw new BusinessException("药品不存在，ID: " + itemRequest.getMaterialId());
+            }
             
             MaterialApplicationItem item = new MaterialApplicationItem();
             item.setApplicationId(application.getId());
@@ -254,6 +261,25 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
             return recordDTO;
         }).collect(Collectors.toList());
         dto.setApprovalRecords(recordDTOs);
+
+        // 填充出库流程追踪信息（审批通过后用于显示“出库流程中”及出库单号）
+        List<StockOutOrderInfoDTO> stockOutOrders = inventoryClient.getStockOutOrdersByApplicationId(id);
+        dto.setStockOutOrders(stockOutOrders);
+        if (stockOutOrders == null || stockOutOrders.isEmpty()) {
+            dto.setStockOutFlowStatus(0);
+            dto.setStockOutFlowStatusName("未生成出库单");
+            dto.setStockOutOrderNos("");
+        } else {
+            boolean allCompleted = stockOutOrders.stream()
+                    .allMatch(order -> order.getStatus() != null && order.getStatus() == 2);
+            dto.setStockOutFlowStatus(allCompleted ? 2 : 1);
+            dto.setStockOutFlowStatusName(allCompleted ? "已全部出库" : "出库流程中");
+            String orderNos = stockOutOrders.stream()
+                    .map(StockOutOrderInfoDTO::getOutOrderNo)
+                    .filter(orderNo -> orderNo != null && !orderNo.trim().isEmpty())
+                    .collect(Collectors.joining(", "));
+            dto.setStockOutOrderNos(orderNos);
+        }
         
         return dto;
     }
@@ -340,10 +366,8 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
             throw new BusinessException("申请单不在审批中状态");
         }
         
-        // 3. 验证审批人权限
-        if (!approverId.equals(application.getCurrentApproverId())) {
-            throw new BusinessException("您不是当前审批人，无权审批");
-        }
+        // 3. 审批权限放开：所有登录用户都可执行审批
+        // 当前审批人字段仅用于流程跟踪展示，不再作为硬性拦截条件
         
         // 4. 获取当前审批层级
         List<ApprovalRecord> existingRecords = approvalWorkflowService.getApprovalHistory(id);

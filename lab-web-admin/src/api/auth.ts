@@ -1,5 +1,5 @@
 import request from '@/utils/request'
-import type { LoginRequest, LoginResponse } from '@/types/user'
+import type { LoginRequest, LoginResponse, UpdateProfileRequest, UserInfo } from '@/types/user'
 
 export const authApi = {
   login(data: LoginRequest) {
@@ -19,6 +19,10 @@ export const authApi = {
   },
 
   getCurrentUser() {
-    return request.get('/auth/current-user')
+    return request.get<any, UserInfo>('/auth/current-user')
+  },
+
+  updateProfile(data: UpdateProfileRequest) {
+    return request.put<any, UserInfo>('/auth/profile', data)
   }
 }

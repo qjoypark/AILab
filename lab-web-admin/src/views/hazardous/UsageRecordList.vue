@@ -232,8 +232,10 @@ const loadRecordList = async () => {
   }
 }
 
-const handleQuery = () => {
-  queryForm.page = 1
+const handleQuery = (trigger?: number | Event) => {
+  if (typeof trigger !== 'number') {
+    queryForm.page = 1
+  }
   loadRecordList()
 }
 

@@ -57,4 +57,9 @@ public class MaterialInfo {
      * 危险类别
      */
     private String dangerCategory;
+
+    /**
+     * 安全库存
+     */
+    private Integer safetyStock;
 }

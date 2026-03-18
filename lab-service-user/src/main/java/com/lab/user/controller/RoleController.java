@@ -16,40 +16,40 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 角色管理控制器
+ * 角色管理
  */
 @Tag(name = "角色管理")
 @RestController
 @RequestMapping("/api/v1/system/roles")
 @RequiredArgsConstructor
 public class RoleController {
-    
+
     private final RoleService roleService;
-    
+
     /**
-     * 查询所有角色
+     * 查询角色列表（ADMIN、CENTER_ADMIN 可查看）
      */
     @Operation(summary = "查询角色列表")
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('CENTER_ADMIN')")
     public Result<List<SysRole>> listRoles() {
         List<SysRole> roles = roleService.listRoles();
         return Result.success(roles);
     }
-    
+
     /**
-     * 根据ID查询角色
+     * 查询角色详情（ADMIN、CENTER_ADMIN 可查看）
      */
     @Operation(summary = "查询角色详情")
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('CENTER_ADMIN')")
     public Result<SysRole> getRoleById(@PathVariable Long id) {
         SysRole role = roleService.getRoleById(id);
         return Result.success(role);
     }
-    
+
     /**
-     * 创建角色
+     * 创建角色（仅 ADMIN）
      */
     @Operation(summary = "创建角色")
     @PostMapping
@@ -59,9 +59,9 @@ public class RoleController {
         Long roleId = roleService.createRole(roleDTO);
         return Result.success(roleId);
     }
-    
+
     /**
-     * 更新角色
+     * 更新角色（仅 ADMIN）
      */
     @Operation(summary = "更新角色")
     @PutMapping("/{id}")
@@ -71,9 +71,9 @@ public class RoleController {
         roleService.updateRole(roleDTO);
         return Result.success();
     }
-    
+
     /**
-     * 删除角色
+     * 删除角色（仅 ADMIN）
      */
     @Operation(summary = "删除角色")
     @DeleteMapping("/{id}")
@@ -82,9 +82,9 @@ public class RoleController {
         roleService.deleteRole(id);
         return Result.success();
     }
-    
+
     /**
-     * 查询权限树
+     * 查询权限树（仅 ADMIN）
      */
     @Operation(summary = "查询权限树")
     @GetMapping("/permissions")
@@ -93,9 +93,9 @@ public class RoleController {
         List<Map<String, Object>> tree = roleService.getPermissionTree();
         return Result.success(tree);
     }
-    
+
     /**
-     * 分配角色权限
+     * 分配角色权限（仅 ADMIN）
      */
     @Operation(summary = "分配角色权限")
     @PostMapping("/{id}/permissions")
@@ -105,11 +105,11 @@ public class RoleController {
         roleService.assignPermissions(id, permissionIds);
         return Result.success();
     }
-    
+
     /**
-     * 查询角色的权限
+     * 查询角色权限（仅 ADMIN）
      */
-    @Operation(summary = "查询角色的权限")
+    @Operation(summary = "查询角色权限")
     @GetMapping("/{id}/permissions")
     @PreAuthorize("hasRole('ADMIN')")
     public Result<List<Long>> getRolePermissions(@PathVariable Long id) {

@@ -3,15 +3,20 @@ package com.lab.inventory.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lab.common.exception.BusinessException;
+import com.lab.inventory.client.MaterialClient;
 import com.lab.inventory.entity.StockInventory;
 import com.lab.inventory.mapper.StockInventoryMapper;
 import com.lab.inventory.service.StockInventoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 库存服务实现
@@ -20,23 +25,104 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StockInventoryServiceImpl implements StockInventoryService {
     
+    private static final int DEFAULT_LOW_STOCK_THRESHOLD = 10;
+
     private final StockInventoryMapper stockInventoryMapper;
+    private final MaterialClient materialClient;
     
     @Override
-    public Page<StockInventory> listStock(int page, int size, Long materialId, Long warehouseId, Boolean lowStock) {
+    public Page<StockInventory> listStock(
+            int page,
+            int size,
+            Long materialId,
+            String keyword,
+            Long warehouseId,
+            Boolean lowStock
+    ) {
         Page<StockInventory> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<StockInventory> wrapper = new LambdaQueryWrapper<>();
         
         if (materialId != null) {
             wrapper.eq(StockInventory::getMaterialId, materialId);
+        } else if (StringUtils.hasText(keyword)) {
+            String normalizedKeyword = keyword.trim();
+            Long keywordMaterialId = parseMaterialId(normalizedKeyword);
+            if (keywordMaterialId != null) {
+                wrapper.eq(StockInventory::getMaterialId, keywordMaterialId);
+            } else {
+                List<Long> materialIds = materialClient.searchMaterialIdsByKeyword(normalizedKeyword);
+                if (materialIds == null || materialIds.isEmpty()) {
+                    pageParam.setTotal(0);
+                    pageParam.setRecords(List.of());
+                    return pageParam;
+                }
+                wrapper.in(StockInventory::getMaterialId, materialIds);
+            }
         }
         if (warehouseId != null) {
             wrapper.eq(StockInventory::getWarehouseId, warehouseId);
         }
-        // TODO: 实现低库存筛选逻辑（需要关联material表获取安全库存）
-        
+
         wrapper.orderByDesc(StockInventory::getUpdatedTime);
-        return stockInventoryMapper.selectPage(pageParam, wrapper);
+        if (!Boolean.TRUE.equals(lowStock)) {
+            return stockInventoryMapper.selectPage(pageParam, wrapper);
+        }
+
+        List<StockInventory> candidateList = stockInventoryMapper.selectList(wrapper);
+        if (candidateList.isEmpty()) {
+            pageParam.setTotal(0);
+            pageParam.setRecords(List.of());
+            return pageParam;
+        }
+
+        Map<Long, Integer> safetyStockMap = new HashMap<>();
+        List<StockInventory> filteredList = candidateList.stream()
+                .filter(stock -> isLowStock(stock, safetyStockMap))
+                .toList();
+
+        long total = filteredList.size();
+        long current = Math.max(page, 1);
+        long pageSize = Math.max(size, 1);
+        int fromIndex = (int) ((current - 1) * pageSize);
+        int toIndex = (int) Math.min(fromIndex + pageSize, total);
+        List<StockInventory> pageRecords = new ArrayList<>();
+        if (fromIndex < toIndex) {
+            pageRecords = filteredList.subList(fromIndex, toIndex);
+        }
+
+        Page<StockInventory> result = new Page<>(current, pageSize, total);
+        result.setRecords(pageRecords);
+        return result;
+    }
+
+    private boolean isLowStock(StockInventory stock, Map<Long, Integer> safetyStockMap) {
+        Integer threshold = safetyStockMap.computeIfAbsent(
+                stock.getMaterialId(),
+                this::resolveSafetyStock
+        );
+        BigDecimal thresholdValue = BigDecimal.valueOf(threshold);
+        BigDecimal availableQuantity = stock.getAvailableQuantity() != null ? stock.getAvailableQuantity() : BigDecimal.ZERO;
+        return availableQuantity.compareTo(thresholdValue) <= 0;
+    }
+
+    private Integer resolveSafetyStock(Long materialId) {
+        try {
+            var materialInfo = materialClient.getMaterialInfo(materialId);
+            if (materialInfo != null && materialInfo.getSafetyStock() != null && materialInfo.getSafetyStock() > 0) {
+                return materialInfo.getSafetyStock();
+            }
+        } catch (Exception ignored) {
+            // fall through to default threshold
+        }
+        return DEFAULT_LOW_STOCK_THRESHOLD;
+    }
+
+    private Long parseMaterialId(String keyword) {
+        try {
+            return Long.parseLong(keyword);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
     
     @Override

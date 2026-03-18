@@ -33,6 +33,8 @@ export interface StockIn {
   stockInCode: string
   warehouseId: number
   warehouseName?: string
+  operatorId?: number
+  operatorName?: string
   supplierId?: number
   supplierName?: string
   stockInType: number // 1-采购入库 2-退货入库 3-盘盈入库
@@ -42,6 +44,7 @@ export interface StockIn {
   createdBy?: number
   createdByName?: string
   createdTime?: string
+  updatedTime?: string
   confirmedBy?: number
   confirmedTime?: string
   items?: StockInDetail[]
@@ -53,6 +56,7 @@ export interface StockInDetail {
   materialId: number
   materialCode?: string
   materialName?: string
+  unit?: string
   quantity: number
   unitPrice?: number
   totalPrice?: number
@@ -147,12 +151,33 @@ export interface StockCheckForm {
 
 export interface Warehouse {
   id: number
+  warehouseCode?: string
   warehouseName: string
   warehouseType: number // 1-普通仓库 2-危化品仓库
+  location?: string
+  managerId?: number
   address?: string
   manager?: string
   phone?: string
   status: number
+  createdTime?: string
+  updatedTime?: string
+}
+
+export interface WarehouseQuery {
+  warehouseType?: number
+  page?: number
+  size?: number
+}
+
+export interface WarehouseForm {
+  id?: number
+  warehouseCode: string
+  warehouseName: string
+  warehouseType: number
+  location?: string
+  managerId?: number
+  status?: number
 }
 
 export interface StorageLocation {

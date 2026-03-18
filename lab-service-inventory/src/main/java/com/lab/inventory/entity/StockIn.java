@@ -6,6 +6,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 入库单实体
@@ -51,4 +52,7 @@ public class StockIn {
     
     @TableLogic
     private Integer deleted;
+
+    @TableField(exist = false)
+    private List<StockInDetail> items;
 }

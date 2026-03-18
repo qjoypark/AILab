@@ -215,7 +215,7 @@ export const useUserStore = defineStore('user', () => {
       return true
     }
     if (permissions.value.length === 0) {
-      return true
+      return false
     }
     return perms.some(perm => permissions.value.includes(normalizePermission(perm)))
   }

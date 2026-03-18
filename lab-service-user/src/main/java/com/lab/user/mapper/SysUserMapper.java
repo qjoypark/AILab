@@ -17,7 +17,7 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
     /**
      * 根据用户ID查询角色编码列表
      */
-    @Select("SELECT r.role_code FROM sys_role r " +
+    @Select("SELECT DISTINCT r.role_code FROM sys_role r " +
             "INNER JOIN sys_user_role ur ON r.id = ur.role_id " +
             "WHERE ur.user_id = #{userId} AND r.status = 1 AND r.deleted = 0")
     List<String> selectRoleCodesByUserId(@Param("userId") Long userId);

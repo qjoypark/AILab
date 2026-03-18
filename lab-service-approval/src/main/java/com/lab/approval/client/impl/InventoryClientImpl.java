@@ -1,6 +1,7 @@
 package com.lab.approval.client.impl;
 
 import com.lab.approval.client.InventoryClient;
+import com.lab.approval.dto.StockOutOrderInfoDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -8,11 +9,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 /**
  * 库存服务客户端实现
@@ -24,7 +28,7 @@ public class InventoryClientImpl implements InventoryClient {
     
     private final RestTemplate restTemplate;
     
-    @Value("${inventory.service.url:http://localhost:8082}")
+    @Value("${inventory.service.url:http://localhost:8083}")
     private String inventoryServiceUrl;
     
     public InventoryClientImpl() {
@@ -33,8 +37,6 @@ public class InventoryClientImpl implements InventoryClient {
     
     @Override
     public boolean checkStockAvailability(Long materialId, BigDecimal quantity) {
-        // TODO: 调用库存服务API检查库存
-        // 临时实现：假设库存充足
         log.info("检查库存: materialId={}, quantity={}", materialId, quantity);
         
         BigDecimal availableStock = getAvailableStock(materialId);
@@ -43,10 +45,35 @@ public class InventoryClientImpl implements InventoryClient {
     
     @Override
     public BigDecimal getAvailableStock(Long materialId) {
-        // TODO: 调用库存服务API获取可用库存
-        // 临时实现：返回模拟数据
         log.info("获取可用库存: materialId={}", materialId);
-        return BigDecimal.valueOf(100);
+
+        try {
+            String url = inventoryServiceUrl + "/api/v1/inventory/stock/" + materialId + "/detail";
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                return BigDecimal.ZERO;
+            }
+
+            Object dataObject = response.getBody().get("data");
+            if (!(dataObject instanceof List<?> stockList) || CollectionUtils.isEmpty(stockList)) {
+                return BigDecimal.ZERO;
+            }
+
+            BigDecimal availableStock = BigDecimal.ZERO;
+            for (Object stockObject : stockList) {
+                if (!(stockObject instanceof Map<?, ?> stockMap)) {
+                    continue;
+                }
+                Object availableObj = stockMap.get("availableQuantity");
+                if (availableObj != null) {
+                    availableStock = availableStock.add(new BigDecimal(availableObj.toString()));
+                }
+            }
+            return availableStock;
+        } catch (Exception ex) {
+            log.error("调用库存服务获取可用库存失败: materialId={}", materialId, ex);
+            return BigDecimal.ZERO;
+        }
     }
     
     @Override
@@ -84,6 +111,64 @@ public class InventoryClientImpl implements InventoryClient {
             return null;
         }
     }
+
+    @Override
+    public List<StockOutOrderInfoDTO> getStockOutOrdersByApplicationId(Long applicationId) {
+        if (applicationId == null) {
+            return new ArrayList<>();
+        }
+        try {
+            String url = inventoryServiceUrl + "/api/v1/inventory/stock-out/application/" + applicationId + "/orders";
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                return new ArrayList<>();
+            }
+            Object data = response.getBody().get("data");
+            if (!(data instanceof List<?> list) || CollectionUtils.isEmpty(list)) {
+                return new ArrayList<>();
+            }
+            List<StockOutOrderInfoDTO> result = new ArrayList<>(list.size());
+            for (Object element : list) {
+                if (!(element instanceof Map<?, ?> item)) {
+                    continue;
+                }
+                StockOutOrderInfoDTO dto = new StockOutOrderInfoDTO();
+                Object id = item.get("id");
+                if (id != null) {
+                    dto.setId(Long.valueOf(id.toString()));
+                }
+                Object outOrderNo = item.get("outOrderNo");
+                if (outOrderNo != null) {
+                    dto.setOutOrderNo(outOrderNo.toString());
+                }
+                Object warehouseId = item.get("warehouseId");
+                if (warehouseId != null) {
+                    dto.setWarehouseId(Long.valueOf(warehouseId.toString()));
+                }
+                Object warehouseName = item.get("warehouseName");
+                if (warehouseName != null) {
+                    dto.setWarehouseName(warehouseName.toString());
+                }
+                Object status = item.get("status");
+                if (status != null) {
+                    dto.setStatus(Integer.valueOf(status.toString()));
+                }
+                Object statusName = item.get("statusName");
+                if (statusName != null) {
+                    dto.setStatusName(statusName.toString());
+                }
+                Object createdTime = item.get("createdTime");
+                if (createdTime != null) {
+                    dto.setCreatedTime(parseDateTime(createdTime.toString()));
+                }
+                result.add(dto);
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("查询申请关联出库单失败: applicationId={}", applicationId, e);
+            return new ArrayList<>();
+        }
+    }
     
     @Override
     public boolean returnHazardousMaterial(Long materialId, BigDecimal returnQuantity, String remark) {
@@ -116,6 +201,18 @@ public class InventoryClientImpl implements InventoryClient {
         } catch (Exception e) {
             log.error("调用库存服务归还入库失败: materialId={}", materialId, e);
             return false;
+        }
+    }
+
+    private java.time.LocalDateTime parseDateTime(String value) {
+        try {
+            return java.time.LocalDateTime.parse(value);
+        } catch (Exception ignore) {
+            try {
+                return java.time.OffsetDateTime.parse(value).toLocalDateTime();
+            } catch (Exception e) {
+                return null;
+            }
         }
     }
 }

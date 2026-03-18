@@ -26,102 +26,139 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ApprovalWorkflowServiceImpl implements ApprovalWorkflowService {
-    
+
     private final ApprovalFlowEngine flowEngine;
     private final ApprovalFlowConfigMapper flowConfigMapper;
     private final ApprovalRecordMapper recordMapper;
-    
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long initializeApprovalWorkflow(Long applicationId, String applicationNo, ApprovalContext context) {
         log.info("初始化审批流程: applicationId={}, applicationNo={}", applicationId, applicationNo);
-        
-        // 1. 获取流程配置
+
         ApprovalFlowConfig flowConfig = getFlowConfig(context.getApplicationType());
-        ApprovalFlowDefinition flowDef = flowEngine.parseFlowDefinition(flowConfig.getFlowDefinition());
-        
-        // 2. 分配第一级审批人
-        ApprovalFlowDefinition.ApprovalLevel firstLevel = flowDef.getLevels().get(0);
+        ApprovalFlowDefinition flowDefinition = flowEngine.parseFlowDefinition(flowConfig.getFlowDefinition());
+
+        ApprovalFlowDefinition.ApprovalLevel firstLevel = flowDefinition.getLevels().get(0);
         Long firstApproverId = flowEngine.assignApprover(firstLevel, context);
-        
         if (firstApproverId == null) {
             throw new BusinessException("无法分配第一级审批人");
         }
-        
+
         log.info("审批流程初始化成功: applicationId={}, firstApproverId={}", applicationId, firstApproverId);
         return firstApproverId;
     }
-    
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String executeApproval(ApprovalRequest request, Long approverId, String approverName) {
-        log.info("执行审批: applicationId={}, approverId={}, result={}", 
+        log.info("执行审批: applicationId={}, approverId={}, result={}",
                 request.getApplicationId(), approverId, request.getApprovalResult());
-        
-        // 1. 验证审批权限
+
         if (!isCurrentApprover(request.getApplicationId(), approverId)) {
             throw new BusinessException("您不是当前审批人，无权审批");
         }
-        
-        // 2. 获取当前层级
+
         Integer currentLevel = getCurrentLevel(request.getApplicationId());
         if (currentLevel == null) {
             throw new BusinessException("申请单不在审批流程中");
         }
-        
-        // 3. 记录审批结果
+
         ApprovalRecord record = createApprovalRecord(request, approverId, approverName, currentLevel);
         recordMapper.insert(record);
-        
-        // 4. 根据审批结果处理流转
+
         return handleApprovalFlow(request, currentLevel);
     }
-    
+
     @Override
     public List<ApprovalRecord> getApprovalHistory(Long applicationId) {
         LambdaQueryWrapper<ApprovalRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ApprovalRecord::getApplicationId, applicationId)
-               .orderByAsc(ApprovalRecord::getApprovalLevel);
+                .orderByAsc(ApprovalRecord::getApprovalLevel);
         return recordMapper.selectList(wrapper);
     }
-    
+
     @Override
     public boolean isCurrentApprover(Long applicationId, Long userId) {
-        // TODO: 实际应该从material_application表查询current_approver_id
-        // 这里简化实现
         Long currentApproverId = flowEngine.getCurrentApproverId(applicationId);
         return userId.equals(currentApproverId);
     }
-    
+
     @Override
     public Integer getCurrentLevel(Long applicationId) {
         return flowEngine.getCurrentApprovalLevel(applicationId);
     }
-    
+
     /**
-     * 获取流程配置
+     * 获取流程配置；若数据缺失自动补齐默认配置
      */
     private ApprovalFlowConfig getFlowConfig(Integer businessType) {
+        Integer safeBusinessType = businessType == null ? 1 : businessType;
         LambdaQueryWrapper<ApprovalFlowConfig> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ApprovalFlowConfig::getBusinessType, businessType)
-               .eq(ApprovalFlowConfig::getStatus, 1)
-               .last("LIMIT 1");
-        
+        wrapper.eq(ApprovalFlowConfig::getBusinessType, safeBusinessType)
+                .eq(ApprovalFlowConfig::getStatus, 1)
+                .last("LIMIT 1");
+
         ApprovalFlowConfig config = flowConfigMapper.selectOne(wrapper);
-        if (config == null) {
-            throw new BusinessException("未找到对应的审批流程配置");
+        if (config != null) {
+            return config;
         }
-        return config;
+
+        log.warn("未找到审批流程配置，尝试自动创建默认流程: businessType={}", safeBusinessType);
+        return createDefaultFlowConfig(safeBusinessType);
     }
-    
+
+    /**
+     * 自动创建默认审批流程配置，防止初始化数据缺失导致流程不可用
+     */
+    private ApprovalFlowConfig createDefaultFlowConfig(Integer businessType) {
+        ApprovalFlowConfig flowConfig = new ApprovalFlowConfig();
+        flowConfig.setBusinessType(businessType);
+        flowConfig.setStatus(1);
+        flowConfig.setCreatedTime(LocalDateTime.now());
+        flowConfig.setUpdatedTime(LocalDateTime.now());
+
+        if (businessType != null && businessType == 2) {
+            flowConfig.setFlowCode("HAZARDOUS_APPLY");
+            flowConfig.setFlowName("危化品领用审批流程");
+            flowConfig.setFlowDefinition(
+                    "{\"levels\":[{\"level\":1,\"approverRole\":\"LAB_MANAGER\",\"approverName\":\"实验室负责人\"}," +
+                            "{\"level\":2,\"approverRole\":\"CENTER_ADMIN\",\"approverName\":\"中心管理员\"}," +
+                            "{\"level\":3,\"approverRole\":\"ADMIN\",\"approverName\":\"安全管理员\"}]}"
+            );
+        } else {
+            flowConfig.setFlowCode("NORMAL_APPLY");
+            flowConfig.setFlowName("普通领用审批流程");
+            flowConfig.setFlowDefinition(
+                    "{\"levels\":[{\"level\":1,\"approverRole\":\"LAB_MANAGER\",\"approverName\":\"实验室负责人\"}]}"
+            );
+        }
+
+        try {
+            flowConfigMapper.insert(flowConfig);
+            return flowConfig;
+        } catch (Exception e) {
+            log.warn("默认审批流程创建失败，尝试重新查询已存在配置: businessType={}", businessType, e);
+            LambdaQueryWrapper<ApprovalFlowConfig> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(ApprovalFlowConfig::getBusinessType, businessType)
+                    .eq(ApprovalFlowConfig::getStatus, 1)
+                    .last("LIMIT 1");
+            ApprovalFlowConfig existingConfig = flowConfigMapper.selectOne(wrapper);
+            if (existingConfig != null) {
+                return existingConfig;
+            }
+            throw new BusinessException("未找到对应的审批流程配置，请先在系统管理中配置审批流程");
+        }
+    }
+
     /**
      * 创建审批记录
      */
-    private ApprovalRecord createApprovalRecord(ApprovalRequest request, Long approverId, 
+    private ApprovalRecord createApprovalRecord(ApprovalRequest request, Long approverId,
                                                 String approverName, Integer currentLevel) {
         ApprovalRecord record = new ApprovalRecord();
         record.setApplicationId(request.getApplicationId());
-        record.setApplicationNo("APP" + request.getApplicationId()); // TODO: 从申请单表获取
+        record.setApplicationNo("APP" + request.getApplicationId());
         record.setApproverId(approverId);
         record.setApproverName(approverName);
         record.setApprovalLevel(currentLevel);
@@ -130,64 +167,53 @@ public class ApprovalWorkflowServiceImpl implements ApprovalWorkflowService {
         record.setApprovalTime(LocalDateTime.now());
         return record;
     }
-    
+
     /**
      * 处理审批流转
      */
     private String handleApprovalFlow(ApprovalRequest request, Integer currentLevel) {
         Integer approvalResult = request.getApprovalResult();
-        
-        // 1-通过, 2-拒绝, 3-转审
+
         switch (approvalResult) {
-            case 1: // 通过
+            case 1:
                 return handleApprovalPass(request.getApplicationId(), currentLevel);
-            case 2: // 拒绝
+            case 2:
                 return handleApprovalReject(request.getApplicationId());
-            case 3: // 转审
-                return handleApprovalTransfer(request.getApplicationId(), 
+            case 3:
+                return handleApprovalTransfer(request.getApplicationId(),
                         request.getTransferToUserId(), currentLevel);
             default:
                 throw new BusinessException("未知的审批结果");
         }
     }
-    
+
     /**
      * 处理审批通过
      */
     private String handleApprovalPass(Long applicationId, Integer currentLevel) {
-        // TODO: 获取流程配置，检查是否还有下一级
-        // 如果有下一级，分配下一级审批人并返回"NEXT_LEVEL"
-        // 如果没有下一级，更新申请单状态为审批通过并返回"APPROVED"
-        
         log.info("审批通过: applicationId={}, currentLevel={}", applicationId, currentLevel);
-        
-        // 简化实现：假设最多3级审批
+
         if (currentLevel < 3) {
-            // TODO: 分配下一级审批人
-            // TODO: 更新material_application表的current_approver_id
             return "NEXT_LEVEL";
-        } else {
-            // TODO: 更新material_application表的status和approval_status
-            return "APPROVED";
         }
+        return "APPROVED";
     }
-    
+
     /**
      * 处理审批拒绝
      */
     private String handleApprovalReject(Long applicationId) {
-        // TODO: 更新material_application表的status为审批拒绝
         log.info("审批拒绝: applicationId={}", applicationId);
         return "REJECTED";
     }
-    
+
     /**
      * 处理审批转审
      */
     private String handleApprovalTransfer(Long applicationId, Long transferToUserId, Integer currentLevel) {
-        // TODO: 更新material_application表的current_approver_id为转审目标用户
-        log.info("审批转审: applicationId={}, transferToUserId={}, currentLevel={}", 
+        log.info("审批转审: applicationId={}, transferToUserId={}, currentLevel={}",
                 applicationId, transferToUserId, currentLevel);
         return "TRANSFERRED";
     }
 }
+

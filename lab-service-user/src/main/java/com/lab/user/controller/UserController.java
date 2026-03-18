@@ -16,16 +16,16 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 用户管理控制器
+ * 用户管理
  */
 @Tag(name = "用户管理")
 @RestController
 @RequestMapping("/api/v1/system/users")
 @RequiredArgsConstructor
 public class UserController {
-    
+
     private final UserService userService;
-    
+
     /**
      * 分页查询用户列表
      */
@@ -40,7 +40,7 @@ public class UserController {
         Page<SysUser> result = userService.listUsers(page, size, keyword, userType);
         return Result.success(result);
     }
-    
+
     /**
      * 根据ID查询用户
      */
@@ -51,7 +51,7 @@ public class UserController {
         SysUser user = userService.getUserById(id);
         return Result.success(user);
     }
-    
+
     /**
      * 创建用户
      */
@@ -59,11 +59,13 @@ public class UserController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('CENTER_ADMIN')")
     @AuditLog(operationType = "CREATE", businessType = "USER", description = "创建用户")
-    public Result<Long> createUser(@Valid @RequestBody UserDTO userDTO) {
-        Long userId = userService.createUser(userDTO);
+    public Result<Long> createUser(
+            @RequestAttribute("userId") Long operatorId,
+            @Valid @RequestBody UserDTO userDTO) {
+        Long userId = userService.createUser(operatorId, userDTO);
         return Result.success(userId);
     }
-    
+
     /**
      * 更新用户
      */
@@ -71,28 +73,33 @@ public class UserController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('CENTER_ADMIN')")
     @AuditLog(operationType = "UPDATE", businessType = "USER", description = "更新用户")
-    public Result<Void> updateUser(@PathVariable Long id, @Valid @RequestBody UserDTO userDTO) {
+    public Result<Void> updateUser(
+            @RequestAttribute("userId") Long operatorId,
+            @PathVariable Long id,
+            @Valid @RequestBody UserDTO userDTO) {
         userDTO.setId(id);
-        userService.updateUser(userDTO);
+        userService.updateUser(operatorId, userDTO);
         return Result.success();
     }
-    
+
     /**
      * 删除用户
      */
     @Operation(summary = "删除用户")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('CENTER_ADMIN')")
     @AuditLog(operationType = "DELETE", businessType = "USER", description = "删除用户")
-    public Result<Void> deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
+    public Result<Void> deleteUser(
+            @RequestAttribute("userId") Long operatorId,
+            @PathVariable Long id) {
+        userService.deleteUser(operatorId, id);
         return Result.success();
     }
-    
+
     /**
-     * 查询用户的角色
+     * 查询用户角色
      */
-    @Operation(summary = "查询用户的角色")
+    @Operation(summary = "查询用户角色")
     @GetMapping("/{id}/roles")
     @PreAuthorize("hasRole('ADMIN') or hasRole('CENTER_ADMIN')")
     public Result<List<Long>> getUserRoles(@PathVariable Long id) {
@@ -101,14 +108,17 @@ public class UserController {
     }
 
     /**
-     * 鍒嗛厤鐢ㄦ埛瑙掕壊
+     * 分配用户角色
      */
-    @Operation(summary = "鍒嗛厤鐢ㄦ埛瑙掕壊")
+    @Operation(summary = "分配用户角色")
     @PostMapping("/{id}/roles")
     @PreAuthorize("hasRole('ADMIN') or hasRole('CENTER_ADMIN')")
-    @AuditLog(operationType = "UPDATE", businessType = "USER_ROLE", description = "鍒嗛厤鐢ㄦ埛瑙掕壊")
-    public Result<Void> assignUserRoles(@PathVariable Long id, @RequestBody List<Long> roleIds) {
-        userService.assignUserRoles(id, roleIds);
+    @AuditLog(operationType = "UPDATE", businessType = "USER_ROLE", description = "分配用户角色")
+    public Result<Void> assignUserRoles(
+            @RequestAttribute("userId") Long operatorId,
+            @PathVariable Long id,
+            @RequestBody List<Long> roleIds) {
+        userService.assignUserRoles(operatorId, id, roleIds);
         return Result.success();
     }
 }

@@ -14,7 +14,14 @@ public interface StockInventoryService {
     /**
      * 分页查询库存列表
      */
-    Page<StockInventory> listStock(int page, int size, Long materialId, Long warehouseId, Boolean lowStock);
+    Page<StockInventory> listStock(
+            int page,
+            int size,
+            Long materialId,
+            String keyword,
+            Long warehouseId,
+            Boolean lowStock
+    );
     
     /**
      * 查询指定药品的库存明细

@@ -25,6 +25,14 @@ public interface MaterialClient {
      * @return 危化品列表
      */
     List<MaterialInfo> getHazardousMaterials();
+
+    /**
+     * 按药品编码/名称关键词查询药品ID
+     *
+     * @param keyword 关键词
+     * @return 匹配到的药品ID列表
+     */
+    List<Long> searchMaterialIdsByKeyword(String keyword);
     
     /**
      * 获取分类信息

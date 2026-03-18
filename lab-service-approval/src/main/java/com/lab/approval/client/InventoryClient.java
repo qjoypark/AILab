@@ -1,6 +1,9 @@
 package com.lab.approval.client;
 
+import com.lab.approval.dto.StockOutOrderInfoDTO;
+
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * 库存服务客户端接口
@@ -32,6 +35,14 @@ public interface InventoryClient {
      * @return 出库单ID
      */
     Long createStockOutOrder(Long applicationId);
+
+    /**
+     * 查询申请关联的出库单列表
+     *
+     * @param applicationId 申请单ID
+     * @return 出库单信息列表
+     */
+    List<StockOutOrderInfoDTO> getStockOutOrdersByApplicationId(Long applicationId);
     
     /**
      * 危化品归还入库

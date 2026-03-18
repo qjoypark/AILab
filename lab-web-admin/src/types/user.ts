@@ -17,6 +17,12 @@ export interface LoginRequest {
   password: string
 }
 
+export interface UpdateProfileRequest {
+  username: string
+  currentPassword?: string
+  newPassword?: string
+}
+
 export interface LoginResponse {
   token: string
   refreshToken: string
@@ -38,6 +44,7 @@ export interface MenuItem {
     title: string
     icon?: string
     permissions?: string[]
+    roles?: string[]
   }
 }
 

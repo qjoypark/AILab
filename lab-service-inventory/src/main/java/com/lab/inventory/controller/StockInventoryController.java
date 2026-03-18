@@ -28,9 +28,17 @@ public class StockInventoryController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long materialId,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Boolean lowStock) {
-        Page<StockInventory> result = stockInventoryService.listStock(page, size, materialId, warehouseId, lowStock);
+        Page<StockInventory> result = stockInventoryService.listStock(
+                page,
+                size,
+                materialId,
+                keyword,
+                warehouseId,
+                lowStock
+        );
         return Result.success(result);
     }
     

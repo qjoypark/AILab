@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 库存盘点实体
@@ -39,4 +40,7 @@ public class StockCheck {
     
     @TableLogic
     private Integer deleted;
+
+    @TableField(exist = false)
+    private List<StockCheckDetail> items;
 }

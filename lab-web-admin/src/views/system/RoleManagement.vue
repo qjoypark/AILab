@@ -11,7 +11,6 @@
         </div>
       </template>
 
-      <!-- 角色列表 -->
       <el-table :data="roleList" border stripe v-loading="loading">
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="roleName" label="角色名称" />
@@ -35,19 +34,13 @@
       </el-table>
     </el-card>
 
-    <!-- 角色表单对话框 -->
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
       width="600px"
       @close="handleDialogClose"
     >
-      <el-form
-        ref="formRef"
-        :model="roleForm"
-        :rules="rules"
-        label-width="100px"
-      >
+      <el-form ref="formRef" :model="roleForm" :rules="rules" label-width="100px">
         <el-form-item label="角色名称" prop="roleName">
           <el-input v-model="roleForm.roleName" />
         </el-form-item>
@@ -70,8 +63,24 @@
       </template>
     </el-dialog>
 
-    <!-- 分配权限对话框 -->
-    <el-dialog v-model="permissionDialogVisible" title="分配权限" width="600px">
+    <el-dialog v-model="permissionDialogVisible" title="分配权限" width="720px">
+      <el-alert
+        title="权限按模块分区展示；模块下任一动作有权限，则前端显示模块。"
+        type="info"
+        :closable="false"
+        show-icon
+      />
+      <div class="permission-toolbar">
+        <span>当前角色：{{ currentRoleCode || '-' }}</span>
+        <el-button
+          type="primary"
+          plain
+          size="small"
+          @click="applyPermissionTemplate"
+        >
+          套用推荐模板
+        </el-button>
+      </div>
       <el-tree
         ref="treeRef"
         :data="permissionTree"
@@ -89,11 +98,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import type { ElTree } from 'element-plus'
 import { userApi } from '@/api/user'
-import type { Role, RoleForm, Permission } from '@/types/user'
+import type { Permission, Role, RoleForm } from '@/types/user'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -105,6 +114,124 @@ const treeRef = ref<InstanceType<typeof ElTree>>()
 const roleList = ref<Role[]>([])
 const permissionTree = ref<Permission[]>([])
 const currentRoleId = ref<number>()
+const currentRoleCode = ref('')
+
+const permissionTemplateMap: Record<string, string[]> = {
+  ADMIN: [
+    'system:user:list',
+    'system:user:create',
+    'system:user:update',
+    'system:user:delete',
+    'system:user:assign-role',
+    'system:role:list',
+    'system:role:create',
+    'system:role:update',
+    'system:role:delete',
+    'system:role:assign-permission',
+    'material:list',
+    'material:create',
+    'material:update',
+    'material:delete',
+    'inventory:stock:list',
+    'inventory:stock-in:list',
+    'inventory:stock-in:create',
+    'inventory:stock-in:confirm',
+    'inventory:stock-in:delete',
+    'inventory:stock-out:list',
+    'inventory:stock-out:create',
+    'inventory:stock-out:confirm',
+    'inventory:stock-out:delete',
+    'inventory:stock-check:list',
+    'inventory:stock-check:create',
+    'inventory:stock-check:record',
+    'inventory:stock-check:complete',
+    'application:list',
+    'application:approve',
+    'hazardous:usage:list',
+    'hazardous:ledger:view',
+    'alert:list'
+  ],
+  CENTER_ADMIN: [
+    'system:user:list',
+    'system:user:create',
+    'system:user:update',
+    'system:user:delete',
+    'system:user:assign-role',
+    'material:list',
+    'material:create',
+    'material:update',
+    'inventory:stock:list',
+    'inventory:stock-in:list',
+    'inventory:stock-in:create',
+    'inventory:stock-in:confirm',
+    'inventory:stock-out:list',
+    'inventory:stock-out:create',
+    'inventory:stock-out:confirm',
+    'inventory:stock-check:list',
+    'inventory:stock-check:create',
+    'inventory:stock-check:record',
+    'inventory:stock-check:complete',
+    'application:list',
+    'application:approve',
+    'hazardous:usage:list',
+    'hazardous:ledger:view',
+    'alert:list'
+  ],
+  LAB_MANAGER: [
+    'material:list',
+    'material:create',
+    'material:update',
+    'inventory:stock:list',
+    'inventory:stock-in:list',
+    'inventory:stock-in:create',
+    'inventory:stock-out:list',
+    'inventory:stock-out:create',
+    'inventory:stock-check:list',
+    'inventory:stock-check:create',
+    'inventory:stock-check:record',
+    'application:list',
+    'application:approve',
+    'hazardous:usage:list',
+    'hazardous:ledger:view',
+    'alert:list'
+  ],
+  EQUIPMENT_ADMIN: [
+    'material:list',
+    'material:create',
+    'material:update',
+    'material:delete',
+    'inventory:stock:list',
+    'inventory:stock-in:list',
+    'inventory:stock-in:create',
+    'inventory:stock-in:confirm',
+    'inventory:stock-out:list',
+    'inventory:stock-out:create',
+    'inventory:stock-out:confirm',
+    'inventory:stock-check:list',
+    'inventory:stock-check:create',
+    'inventory:stock-check:record',
+    'inventory:stock-check:complete',
+    'application:list',
+    'application:approve',
+    'hazardous:usage:list',
+    'hazardous:ledger:view',
+    'alert:list'
+  ],
+  TEACHER: [
+    'material:list',
+    'inventory:stock:list',
+    'application:list',
+    'application:approve',
+    'hazardous:usage:list',
+    'hazardous:ledger:view'
+  ],
+  STUDENT: [
+    'material:list',
+    'inventory:stock:list',
+    'application:list',
+    'application:approve'
+  ]
+}
 
 const roleForm = reactive<RoleForm>({
   roleName: '',
@@ -116,6 +243,18 @@ const roleForm = reactive<RoleForm>({
 const rules: FormRules = {
   roleName: [{ required: true, message: '请输入角色名称', trigger: 'blur' }],
   roleCode: [{ required: true, message: '请输入角色编码', trigger: 'blur' }]
+}
+
+const collectPermissionCodeIdMap = (nodes: Permission[], codeIdMap = new Map<string, number>()) => {
+  nodes.forEach((node) => {
+    if (node.permissionCode) {
+      codeIdMap.set(node.permissionCode, node.id)
+    }
+    if (node.children && node.children.length > 0) {
+      collectPermissionCodeIdMap(node.children, codeIdMap)
+    }
+  })
+  return codeIdMap
 }
 
 const loadRoleList = async () => {
@@ -164,10 +303,10 @@ const handleEdit = (row: Role) => {
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     submitting.value = true
     try {
       if (roleForm.id) {
@@ -178,7 +317,7 @@ const handleSubmit = async () => {
         ElMessage.success('创建成功')
       }
       dialogVisible.value = false
-      loadRoleList()
+      await loadRoleList()
     } catch (error) {
       console.error('提交失败:', error)
     } finally {
@@ -193,41 +332,80 @@ const handleDelete = async (row: Role) => {
     cancelButtonText: '取消',
     type: 'warning'
   })
-  
+
   try {
     await userApi.deleteRole(row.id)
     ElMessage.success('删除成功')
-    loadRoleList()
+    await loadRoleList()
   } catch (error) {
     console.error('删除失败:', error)
   }
 }
 
+const applyPermissionTemplate = () => {
+  if (!currentRoleCode.value || !treeRef.value) {
+    ElMessage.warning('请先选择角色')
+    return
+  }
+
+  const templateCodes = permissionTemplateMap[currentRoleCode.value]
+  if (!templateCodes || templateCodes.length === 0) {
+    ElMessage.warning(`角色 ${currentRoleCode.value} 暂无预置模板`)
+    return
+  }
+
+  const codeIdMap = collectPermissionCodeIdMap(permissionTree.value)
+  const selectedIds: number[] = []
+  const missingCodes: string[] = []
+
+  templateCodes.forEach((code) => {
+    const id = codeIdMap.get(code)
+    if (id) {
+      selectedIds.push(id)
+    } else {
+      missingCodes.push(code)
+    }
+  })
+
+  treeRef.value.setCheckedKeys(selectedIds)
+
+  if (missingCodes.length > 0) {
+    ElMessage.warning(`模板已套用，部分权限未找到：${missingCodes.join(', ')}`)
+    return
+  }
+  ElMessage.success(`已套用 ${currentRoleCode.value} 推荐模板`)
+}
+
 const handleAssignPermissions = async (row: Role) => {
   currentRoleId.value = row.id
+  currentRoleCode.value = row.roleCode
   permissionDialogVisible.value = true
-  
-  // 设置已选中的权限
   await loadPermissionTree()
-  if (row.permissions && treeRef.value) {
-    const permissionIds = row.permissions.map(p => p.id)
-    treeRef.value.setCheckedKeys(permissionIds)
+
+  if (treeRef.value) {
+    treeRef.value.setCheckedKeys([])
+    try {
+      const permissionIds = await userApi.getRolePermissions(row.id)
+      treeRef.value.setCheckedKeys(permissionIds)
+    } catch (error) {
+      console.error('加载角色已分配权限失败:', error)
+    }
   }
 }
 
 const handlePermissionSubmit = async () => {
   if (!currentRoleId.value || !treeRef.value) return
-  
+
   submitting.value = true
   try {
     const checkedKeys = treeRef.value.getCheckedKeys() as number[]
     const halfCheckedKeys = treeRef.value.getHalfCheckedKeys() as number[]
-    const permissionIds = [...checkedKeys, ...halfCheckedKeys]
-    
+    const permissionIds = Array.from(new Set([...checkedKeys, ...halfCheckedKeys]))
+
     await userApi.assignPermissions(currentRoleId.value, permissionIds)
     ElMessage.success('分配权限成功')
     permissionDialogVisible.value = false
-    loadRoleList()
+    await loadRoleList()
   } catch (error) {
     console.error('分配权限失败:', error)
   } finally {
@@ -253,5 +431,14 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.permission-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 12px 0;
+  padding: 0 4px;
+  color: #606266;
 }
 </style>

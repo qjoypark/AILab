@@ -15,9 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -27,18 +29,18 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RoleService {
-    
+
     private final SysRoleMapper roleMapper;
     private final SysPermissionMapper permissionMapper;
     private final JdbcTemplate jdbcTemplate;
-    
+
     /**
      * 查询所有角色
      */
     public List<SysRole> listRoles() {
         return roleMapper.selectList(null);
     }
-    
+
     /**
      * 根据ID查询角色
      */
@@ -49,40 +51,36 @@ public class RoleService {
         }
         return role;
     }
-    
+
     /**
      * 创建角色
      */
     @Transactional(rollbackFor = Exception.class)
     public Long createRole(RoleDTO roleDTO) {
-        // 检查角色编码是否存在
         LambdaQueryWrapper<SysRole> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysRole::getRoleCode, roleDTO.getRoleCode());
         if (roleMapper.selectCount(wrapper) > 0) {
             throw new BusinessException(400001, "角色编码已存在");
         }
-        
-        // 创建角色
+
         SysRole role = new SysRole();
         BeanUtils.copyProperties(roleDTO, role);
         roleMapper.insert(role);
-        
-        // 分配权限
+
         if (roleDTO.getPermissionIds() != null && !roleDTO.getPermissionIds().isEmpty()) {
             assignPermissions(role.getId(), roleDTO.getPermissionIds());
         }
-        
+
         return role.getId();
     }
-    
+
     /**
      * 更新角色
      */
     @Transactional(rollbackFor = Exception.class)
     public void updateRole(RoleDTO roleDTO) {
         SysRole existingRole = getRoleById(roleDTO.getId());
-        
-        // 检查角色编码是否被其他角色使用
+
         if (!existingRole.getRoleCode().equals(roleDTO.getRoleCode())) {
             LambdaQueryWrapper<SysRole> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(SysRole::getRoleCode, roleDTO.getRoleCode());
@@ -91,23 +89,19 @@ public class RoleService {
                 throw new BusinessException(400001, "角色编码已存在");
             }
         }
-        
-        // 更新角色信息
+
         SysRole role = new SysRole();
         BeanUtils.copyProperties(roleDTO, role);
         roleMapper.updateById(role);
-        
-        // 更新权限
+
         if (roleDTO.getPermissionIds() != null) {
-            // 删除旧权限
             jdbcTemplate.update("DELETE FROM sys_role_permission WHERE role_id = ?", roleDTO.getId());
-            // 分配新权限
             if (!roleDTO.getPermissionIds().isEmpty()) {
                 assignPermissions(roleDTO.getId(), roleDTO.getPermissionIds());
             }
         }
     }
-    
+
     /**
      * 删除角色（逻辑删除）
      */
@@ -115,16 +109,14 @@ public class RoleService {
         getRoleById(id);
         roleMapper.deleteById(id);
     }
-    
+
     /**
-     * 分配权限
+     * 分配角色权限
      */
     @Transactional(rollbackFor = Exception.class)
     public void assignPermissions(Long roleId, List<Long> permissionIds) {
-        // 删除旧权限
         jdbcTemplate.update("DELETE FROM sys_role_permission WHERE role_id = ?", roleId);
-        
-        // 分配新权限
+
         for (Long permissionId : permissionIds) {
             jdbcTemplate.update(
                     "INSERT INTO sys_role_permission (role_id, permission_id) VALUES (?, ?)",
@@ -132,7 +124,7 @@ public class RoleService {
             );
         }
     }
-    
+
     /**
      * 查询角色的权限ID列表
      */
@@ -143,27 +135,23 @@ public class RoleService {
                 roleId
         );
     }
-    
+
     /**
      * 查询权限树
      */
     public List<Map<String, Object>> getPermissionTree() {
         List<SysPermission> allPermissions = permissionMapper.selectList(null);
-        
-        // 构建树形结构
         return buildPermissionTree(allPermissions, 0L);
     }
-    
-    /**
-     * 递归构建权限树
-     */
+
     private List<Map<String, Object>> buildPermissionTree(List<SysPermission> allPermissions, Long parentId) {
         List<Map<String, Object>> tree = new ArrayList<>();
-        
+
         List<SysPermission> children = allPermissions.stream()
-                .filter(p -> p.getParentId().equals(parentId))
+                .filter(permission -> Objects.equals(permission.getParentId(), parentId))
+                .sorted(Comparator.comparing(SysPermission::getSortOrder, Comparator.nullsLast(Integer::compareTo)))
                 .collect(Collectors.toList());
-        
+
         for (SysPermission permission : children) {
             Map<String, Object> node = new HashMap<>();
             node.put("id", permission.getId());
@@ -174,15 +162,15 @@ public class RoleService {
             node.put("icon", permission.getIcon());
             node.put("sortOrder", permission.getSortOrder());
             node.put("status", permission.getStatus());
-            
+
             List<Map<String, Object>> childNodes = buildPermissionTree(allPermissions, permission.getId());
             if (!childNodes.isEmpty()) {
                 node.put("children", childNodes);
             }
-            
+
             tree.add(node);
         }
-        
+
         return tree;
     }
 }

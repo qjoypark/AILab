@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>库存盘点</span>
-          <el-button type="primary" @click="handleAdd">
+          <el-button v-if="canCreateStockCheck" type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon>
             新建盘点单
           </el-button>
@@ -31,7 +31,11 @@
       <!-- 盘点单列表 -->
       <el-table :data="checkList" border stripe v-loading="loading">
         <el-table-column prop="checkCode" label="盘点单号" width="180" />
-        <el-table-column prop="warehouseName" label="仓库" width="120" />
+        <el-table-column prop="warehouseName" label="仓库" width="140">
+          <template #default="{ row }">
+            {{ getWarehouseDisplay(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="checkType" label="盘点类型" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.checkType === 1">全盘</el-tag>
@@ -44,14 +48,18 @@
             <el-tag v-else type="success">已完成</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdByName" label="创建人" width="100" />
+        <el-table-column prop="createdByName" label="创建人" width="120">
+          <template #default="{ row }">
+            {{ getCreatorDisplay(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="createdTime" label="创建时间" width="180" />
         <el-table-column prop="completedTime" label="完成时间" width="180" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">查看</el-button>
             <el-button
-              v-if="row.status === 0"
+              v-if="row.status === 0 && canRecordStockCheck"
               link
               type="warning"
               @click="handleRecord(row)"
@@ -59,7 +67,7 @@
               录入盘点
             </el-button>
             <el-button
-              v-if="row.status === 0"
+              v-if="row.status === 0 && canCompleteStockCheck"
               link
               type="success"
               @click="handleComplete(row)"
@@ -117,7 +125,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
+        <el-button v-if="canCreateStockCheck" type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
       </template>
     </el-dialog>
 
@@ -127,14 +135,25 @@
       title="录入盘点明细"
       width="1000px"
     >
-      <el-button type="primary" size="small" @click="handleAddCheckItem" style="margin-bottom: 10px">
+      <el-button
+        v-if="canRecordStockCheck"
+        type="primary"
+        size="small"
+        @click="handleAddCheckItem"
+        style="margin-bottom: 10px"
+      >
         添加药品
       </el-button>
       
       <el-table :data="checkItems" border max-height="400px">
-        <el-table-column label="药品" width="200">
+        <el-table-column label="药品编码" width="160">
           <template #default="{ row, $index }">
-            <el-input v-model="row.materialName" placeholder="选择药品" readonly @click="selectMaterial($index)" />
+            <el-input :model-value="getMaterialCodeDisplay(row)" placeholder="选择药品" readonly @click="selectMaterial($index)" />
+          </template>
+        </el-table-column>
+        <el-table-column label="药品名称" width="180">
+          <template #default="{ row, $index }">
+            <el-input :model-value="getMaterialNameDisplay(row)" placeholder="选择药品" readonly @click="selectMaterial($index)" />
           </template>
         </el-table-column>
         <el-table-column label="批次号" width="120">
@@ -166,14 +185,14 @@
         </el-table-column>
         <el-table-column label="操作" width="80" fixed="right">
           <template #default="{ $index }">
-            <el-button link type="danger" @click="handleRemoveCheckItem($index)">删除</el-button>
+            <el-button v-if="canRecordStockCheck" link type="danger" @click="handleRemoveCheckItem($index)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
       
       <template #footer>
         <el-button @click="recordDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitCheckItems" :loading="submitting">保存</el-button>
+        <el-button v-if="canRecordStockCheck" type="primary" @click="handleSubmitCheckItems" :loading="submitting">保存</el-button>
       </template>
     </el-dialog>
 
@@ -181,7 +200,7 @@
     <el-dialog v-model="viewDialogVisible" title="盘点单详情" width="1000px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="盘点单号">{{ currentCheck?.checkCode }}</el-descriptions-item>
-        <el-descriptions-item label="仓库">{{ currentCheck?.warehouseName }}</el-descriptions-item>
+        <el-descriptions-item label="仓库">{{ currentCheck ? getWarehouseDisplay(currentCheck) : '-' }}</el-descriptions-item>
         <el-descriptions-item label="盘点类型">
           <el-tag v-if="currentCheck?.checkType === 1">全盘</el-tag>
           <el-tag v-else type="info">抽盘</el-tag>
@@ -190,7 +209,7 @@
           <el-tag v-if="currentCheck?.status === 0" type="warning">盘点中</el-tag>
           <el-tag v-else type="success">已完成</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ currentCheck?.createdByName }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ currentCheck ? getCreatorDisplay(currentCheck) : '-' }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ currentCheck?.createdTime }}</el-descriptions-item>
         <el-descriptions-item label="完成时间" :span="2">{{ currentCheck?.completedTime || '-' }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ currentCheck?.remark || '-' }}</el-descriptions-item>
@@ -199,8 +218,16 @@
       <el-divider>盘点明细</el-divider>
       
       <el-table :data="currentCheck?.items" border>
-        <el-table-column prop="materialCode" label="药品编码" />
-        <el-table-column prop="materialName" label="药品名称" />
+        <el-table-column label="药品编码">
+          <template #default="{ row }">
+            {{ getMaterialCodeDisplay(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="药品名称">
+          <template #default="{ row }">
+            {{ getMaterialNameDisplay(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="batchNumber" label="批次号" />
         <el-table-column prop="bookQuantity" label="账面数量" align="right" />
         <el-table-column prop="actualQuantity" label="实际数量" align="right" />
@@ -224,13 +251,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { inventoryApi } from '@/api/inventory'
 import MaterialSelector from '@/components/MaterialSelector.vue'
 import type { StockCheck, StockCheckForm, StockCheckDetail, Warehouse } from '@/types/inventory'
 import type { Material } from '@/types/material'
+import { materialApi } from '@/api/material'
+import { useUserStore } from '@/stores/user'
+import { INVENTORY_STOCK_CHECK_PERMISSIONS } from '@/constants/permissions'
 
+const userStore = useUserStore()
 const loading = ref(false)
 const submitting = ref(false)
 const dialogVisible = ref(false)
@@ -240,11 +271,19 @@ const materialSelectorVisible = ref(false)
 const formRef = ref<FormInstance>()
 const checkList = ref<StockCheck[]>([])
 const warehouseList = ref<Warehouse[]>([])
+const warehouseNameMap = ref<Record<number, string>>({})
+const userNameMap = ref<Record<number, string>>({})
+const materialInfoMap = ref<Record<number, { materialCode?: string; materialName?: string }>>({})
 const currentCheck = ref<StockCheck>()
 const checkItems = ref<StockCheckDetail[]>([])
 const currentItemIndex = ref<number>()
 const currentCheckId = ref<number>()
 const total = ref(0)
+const canCreateStockCheck = computed(() => userStore.hasPermission('inventory:stock-check:create'))
+const canRecordStockCheck = computed(() => userStore.hasPermission('inventory:stock-check:record'))
+const canCompleteStockCheck = computed(() => userStore.hasPermission('inventory:stock-check:complete'))
+const canAccessStockCheckPage = computed(() => userStore.hasAnyPermission([...INVENTORY_STOCK_CHECK_PERMISSIONS]))
+const canReadMaterial = computed(() => userStore.hasPermission('material:list'))
 
 const queryForm = reactive({
   keyword: '',
@@ -264,11 +303,140 @@ const rules: FormRules = {
   checkType: [{ required: true, message: '请选择盘点类型', trigger: 'change' }]
 }
 
+const formatIdLabel = (prefix: string, value?: number) => {
+  if (!value) return '-'
+  return `${prefix}#${value}`
+}
+
+const formatDateTime = (dateTime?: string) => {
+  if (!dateTime) return '-'
+  return dateTime.replace('T', ' ').slice(0, 19)
+}
+
+const rebuildWarehouseNameMap = () => {
+  const map: Record<number, string> = {}
+  warehouseList.value.forEach((warehouse) => {
+    map[warehouse.id] = warehouse.warehouseName
+  })
+  warehouseNameMap.value = map
+}
+
+const resolveUserName = async (userId?: number) => {
+  if (!userId) return ''
+  if (userNameMap.value[userId]) {
+    return userNameMap.value[userId]
+  }
+
+  const currentUser = userStore.userInfo
+  const userName =
+    currentUser?.id === userId
+      ? (currentUser.realName || currentUser.username || String(userId))
+      : String(userId)
+  userNameMap.value[userId] = userName
+  return userName
+}
+
+const resolveMaterialInfo = async (materialId?: number) => {
+  if (!materialId) return {}
+  if (materialInfoMap.value[materialId]) {
+    return materialInfoMap.value[materialId]
+  }
+  if (!canReadMaterial.value) {
+    materialInfoMap.value[materialId] = {}
+    return {}
+  }
+
+  try {
+    const material = await materialApi.getMaterialById(materialId)
+    const info = {
+      materialCode: material.materialCode,
+      materialName: material.materialName
+    }
+    materialInfoMap.value[materialId] = info
+    return info
+  } catch {
+    materialInfoMap.value[materialId] = {}
+    return {}
+  }
+}
+
+const getWarehouseDisplay = (check: StockCheck) => {
+  return (
+    check.warehouseName ||
+    warehouseNameMap.value[check.warehouseId] ||
+    formatIdLabel('仓库', check.warehouseId)
+  )
+}
+
+const getCreatorDisplay = (check: StockCheck) => {
+  return (
+    check.createdByName ||
+    (check.createdBy ? userNameMap.value[check.createdBy] : '') ||
+    formatIdLabel('用户', check.createdBy)
+  )
+}
+
+const getMaterialCodeDisplay = (detail: StockCheckDetail) => {
+  return (
+    detail.materialCode ||
+    (detail.materialId ? materialInfoMap.value[detail.materialId]?.materialCode : '') ||
+    '-'
+  )
+}
+
+const getMaterialNameDisplay = (detail: StockCheckDetail) => {
+  return (
+    detail.materialName ||
+    (detail.materialId ? materialInfoMap.value[detail.materialId]?.materialName : '') ||
+    '-'
+  )
+}
+
+const enrichStockCheck = async (stockCheck: StockCheck) => {
+  const enriched: StockCheck = {
+    ...stockCheck,
+    warehouseName: stockCheck.warehouseName || warehouseNameMap.value[stockCheck.warehouseId],
+    createdTime: formatDateTime(stockCheck.createdTime || (stockCheck as any).checkDate),
+    completedTime: formatDateTime(stockCheck.completedTime)
+  }
+
+  const creatorId = enriched.createdBy
+  if (!enriched.createdByName && creatorId) {
+    enriched.createdByName = await resolveUserName(creatorId)
+  }
+  if (!enriched.createdByName && creatorId) {
+    enriched.createdByName = formatIdLabel('用户', creatorId)
+  }
+  if (!enriched.createdByName) {
+    enriched.createdByName = '-'
+  }
+
+  if (enriched.items && enriched.items.length > 0) {
+    for (const detail of enriched.items) {
+      if ((!detail.materialCode || !detail.materialName) && detail.materialId) {
+        const materialInfo = await resolveMaterialInfo(detail.materialId)
+        detail.materialCode = detail.materialCode || materialInfo.materialCode
+        detail.materialName = detail.materialName || materialInfo.materialName
+      }
+      detail.differenceQuantity = detail.differenceQuantity ?? (detail as any).diffQuantity
+      detail.differenceReason = detail.differenceReason ?? (detail as any).diffReason
+    }
+  }
+
+  return enriched
+}
+
 const loadCheckList = async () => {
+  if (!canAccessStockCheckPage.value) {
+    checkList.value = []
+    total.value = 0
+    return
+  }
+
   loading.value = true
   try {
     const res = await inventoryApi.getStockCheckList(queryForm)
-    checkList.value = res.list
+    checkList.value = await Promise.all(res.list.map(enrichStockCheck))
     total.value = res.total
   } catch (error) {
     console.error('加载盘点单列表失败:', error)
@@ -280,13 +448,16 @@ const loadCheckList = async () => {
 const loadWarehouseList = async () => {
   try {
     warehouseList.value = await inventoryApi.getWarehouseList()
+    rebuildWarehouseNameMap()
   } catch (error) {
     console.error('加载仓库列表失败:', error)
   }
 }
 
-const handleQuery = () => {
-  queryForm.page = 1
+const handleQuery = (trigger?: number | Event) => {
+  if (typeof trigger !== 'number') {
+    queryForm.page = 1
+  }
   loadCheckList()
 }
 
@@ -297,6 +468,11 @@ const handleReset = () => {
 }
 
 const handleAdd = () => {
+  if (!canCreateStockCheck.value) {
+    ElMessage.warning('没有盘点单新增权限')
+    return
+  }
+
   Object.assign(checkForm, {
     warehouseId: 0,
     checkType: 1,
@@ -306,6 +482,11 @@ const handleAdd = () => {
 }
 
 const handleSubmit = async () => {
+  if (!canCreateStockCheck.value) {
+    ElMessage.warning('没有盘点单新增权限')
+    return
+  }
+
   if (!formRef.value) return
   
   await formRef.value.validate(async (valid) => {
@@ -326,10 +507,16 @@ const handleSubmit = async () => {
 }
 
 const handleRecord = async (row: StockCheck) => {
+  if (!canRecordStockCheck.value) {
+    ElMessage.warning('没有盘点录入权限')
+    return
+  }
+
   currentCheckId.value = row.id
   try {
     const check = await inventoryApi.getStockCheckById(row.id)
-    checkItems.value = check.items || []
+    const enriched = await enrichStockCheck(check)
+    checkItems.value = enriched.items || []
     recordDialogVisible.value = true
   } catch (error) {
     console.error('加载盘点单详情失败:', error)
@@ -337,8 +524,14 @@ const handleRecord = async (row: StockCheck) => {
 }
 
 const handleAddCheckItem = () => {
+  if (!canRecordStockCheck.value) {
+    ElMessage.warning('没有盘点录入权限')
+    return
+  }
+
   checkItems.value.push({
     materialId: 0,
+    materialCode: '',
     materialName: '',
     batchNumber: '',
     bookQuantity: 0,
@@ -349,6 +542,11 @@ const handleAddCheckItem = () => {
 }
 
 const handleRemoveCheckItem = (index: number) => {
+  if (!canRecordStockCheck.value) {
+    ElMessage.warning('没有盘点录入权限')
+    return
+  }
+
   checkItems.value.splice(index, 1)
 }
 
@@ -361,12 +559,24 @@ const handleMaterialSelected = (material: Material) => {
   if (currentItemIndex.value !== undefined) {
     const item = checkItems.value[currentItemIndex.value]
     item.materialId = material.id
-    item.materialCode = material.materialCode
-    item.materialName = material.materialName
+    const materialCode = material.materialCode || (material as any).code || ''
+    const materialName = material.materialName || (material as any).name || ''
+    item.materialCode = materialCode
+    item.materialName = materialName
+
+    materialInfoMap.value[material.id] = {
+      materialCode,
+      materialName
+    }
   }
 }
 
 const handleSubmitCheckItems = async () => {
+  if (!canRecordStockCheck.value) {
+    ElMessage.warning('没有盘点录入权限')
+    return
+  }
+
   if (!currentCheckId.value) return
   
   if (checkItems.value.length === 0) {
@@ -393,6 +603,11 @@ const handleSubmitCheckItems = async () => {
 }
 
 const handleComplete = async (row: StockCheck) => {
+  if (!canCompleteStockCheck.value) {
+    ElMessage.warning('没有盘点完成权限')
+    return
+  }
+
   await ElMessageBox.confirm('确定要完成盘点吗？完成后将根据盘点结果调整库存。', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
@@ -410,7 +625,8 @@ const handleComplete = async (row: StockCheck) => {
 
 const handleView = async (row: StockCheck) => {
   try {
-    currentCheck.value = await inventoryApi.getStockCheckById(row.id)
+    const check = await inventoryApi.getStockCheckById(row.id)
+    currentCheck.value = await enrichStockCheck(check)
     viewDialogVisible.value = true
   } catch (error) {
     console.error('加载盘点单详情失败:', error)
@@ -428,9 +644,9 @@ const handleDialogClose = () => {
   formRef.value?.resetFields()
 }
 
-onMounted(() => {
-  loadCheckList()
-  loadWarehouseList()
+onMounted(async () => {
+  await loadWarehouseList()
+  await loadCheckList()
 })
 </script>
 

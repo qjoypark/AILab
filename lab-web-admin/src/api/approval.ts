@@ -29,6 +29,10 @@ const mapApplication = (item: any): MaterialApplication => ({
   department: item.department ?? item.applicantDept,
   status: mapApplicationStatus(item.status),
   currentApprovalLevel: item.currentApprovalLevel ?? 1,
+  stockOutFlowStatus: item.stockOutFlowStatus,
+  stockOutFlowStatusName: item.stockOutFlowStatusName,
+  stockOutOrderNos: item.stockOutOrderNos,
+  stockOutOrders: item.stockOutOrders ?? [],
   items: (item.items ?? []).map((child: any) => ({
     ...child,
     requestedQuantity: child.requestedQuantity ?? child.applyQuantity,

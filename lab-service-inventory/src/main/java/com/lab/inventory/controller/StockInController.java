@@ -8,8 +8,11 @@ import com.lab.inventory.service.StockInService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
 
 /**
  * 入库管理控制器
@@ -28,8 +31,21 @@ public class StockInController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long warehouseId,
-            @RequestParam(required = false) Integer status) {
-        Page<StockIn> result = stockInService.listStockIn(page, size, warehouseId, status);
+            @RequestParam(required = false) Integer status,
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+            LocalDateTime createdTimeStart,
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+            LocalDateTime createdTimeEnd) {
+        Page<StockIn> result = stockInService.listStockIn(
+                page,
+                size,
+                warehouseId,
+                status,
+                createdTimeStart,
+                createdTimeEnd
+        );
         return Result.success(result);
     }
     

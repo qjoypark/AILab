@@ -54,6 +54,13 @@ public class StockCheckServiceImpl implements com.lab.inventory.service.StockChe
         if (stockCheck == null) {
             throw new BusinessException("盘点单不存在");
         }
+
+        LambdaQueryWrapper<StockCheckDetail> detailWrapper = new LambdaQueryWrapper<>();
+        detailWrapper.eq(StockCheckDetail::getCheckId, id);
+        detailWrapper.orderByAsc(StockCheckDetail::getId);
+        List<StockCheckDetail> details = stockCheckDetailMapper.selectList(detailWrapper);
+        stockCheck.setItems(details);
+
         return stockCheck;
     }
     
@@ -63,12 +70,16 @@ public class StockCheckServiceImpl implements com.lab.inventory.service.StockChe
     public StockCheck createStockCheck(StockCheckDTO dto) {
         // 生成盘点单号
         String checkNo = generateCheckNo();
+        LocalDateTime now = LocalDateTime.now();
         
         // 创建盘点单
         StockCheck stockCheck = new StockCheck();
         BeanUtils.copyProperties(dto, stockCheck);
         stockCheck.setCheckNo(checkNo);
         stockCheck.setStatus(1); // 盘点中
+        stockCheck.setCreatedBy(dto.getCheckerId());
+        stockCheck.setCreatedTime(now);
+        stockCheck.setUpdatedTime(now);
         
         stockCheckMapper.insert(stockCheck);
         
@@ -91,10 +102,12 @@ public class StockCheckServiceImpl implements com.lab.inventory.service.StockChe
         stockCheckDetailMapper.delete(deleteWrapper);
         
         // 创建新的盘点明细
+        LocalDateTime now = LocalDateTime.now();
         for (StockCheckDTO.StockCheckDetailDTO itemDto : dto.getItems()) {
             StockCheckDetail detail = new StockCheckDetail();
             BeanUtils.copyProperties(itemDto, detail);
             detail.setCheckId(id);
+            detail.setCreatedTime(now);
             
             // 计算差异数量
             BigDecimal diffQty = itemDto.getActualQuantity().subtract(itemDto.getBookQuantity());
@@ -102,6 +115,9 @@ public class StockCheckServiceImpl implements com.lab.inventory.service.StockChe
             
             stockCheckDetailMapper.insert(detail);
         }
+
+        stockCheck.setUpdatedTime(now);
+        stockCheckMapper.updateById(stockCheck);
     }
     
     @Override
@@ -128,6 +144,7 @@ public class StockCheckServiceImpl implements com.lab.inventory.service.StockChe
         
         // 更新盘点单状态
         stockCheck.setStatus(2); // 已完成
+        stockCheck.setUpdatedTime(LocalDateTime.now());
         stockCheckMapper.updateById(stockCheck);
     }
     

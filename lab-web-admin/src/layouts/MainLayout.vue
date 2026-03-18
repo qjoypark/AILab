@@ -83,6 +83,7 @@ import { ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useMenu } from '@/composables/useMenu'
 import { authApi } from '@/api/auth'
+import { notificationApi } from '@/api/notification'
 
 const route = useRoute()
 const router = useRouter()
@@ -92,6 +93,34 @@ const unreadCount = ref(0)
 
 const activeMenu = computed(() => route.path)
 const currentRoute = computed(() => route.meta.title as string)
+
+const syncCurrentUserPermissions = async () => {
+  if (!userStore.token) {
+    return
+  }
+
+  try {
+    const currentUser = await authApi.getCurrentUser()
+    userStore.setUserInfo(currentUser)
+    userStore.setPermissions(currentUser.permissions ?? [])
+  } catch (error) {
+    console.warn('同步当前用户权限快照失败:', error)
+  }
+}
+
+const loadUnreadCount = async () => {
+  const userId = userStore.userInfo?.id
+  if (!userId) {
+    unreadCount.value = 0
+    return
+  }
+
+  try {
+    unreadCount.value = await notificationApi.getUnreadCount(userId)
+  } catch (error) {
+    console.error('加载未读消息数量失败:', error)
+  }
+}
 
 const goToNotifications = () => {
   router.push('/notifications')
@@ -117,8 +146,9 @@ const handleCommand = async (command: string) => {
   }
 }
 
-onMounted(() => {
-  // TODO: 获取未读消息数量
+onMounted(async () => {
+  await syncCurrentUserPermissions()
+  await loadUnreadCount()
 })
 </script>
 
@@ -138,8 +168,23 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: bold;
+  padding: 0 8px;
+  text-align: center;
+}
+
+.logo h3 {
+  margin: 0;
+  width: 100%;
+  font-size: 0;
+  line-height: 1.3;
+}
+
+.logo h3::after {
+  content: '呼伦贝尔学院农学院实验室管理系统';
+  font-size: 14px;
+  white-space: normal;
 }
 
 .header {

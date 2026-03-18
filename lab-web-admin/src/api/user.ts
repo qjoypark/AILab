@@ -37,6 +37,10 @@ export const userApi = {
     return request.post(`/system/users/${userId}/roles`, roleIds)
   },
 
+  getUserRoles(userId: number) {
+    return request.get<any, number[]>(`/system/users/${userId}/roles`)
+  },
+
   getRoleList(params?: { keyword?: string }) {
     return request.get<any, PageResult<Role> | Role[]>('/system/roles', { params }).then((result) => {
       if (Array.isArray(result)) {
@@ -67,6 +71,10 @@ export const userApi = {
 
   assignPermissions(roleId: number, permissionIds: number[]) {
     return request.post(`/system/roles/${roleId}/permissions`, permissionIds)
+  },
+
+  getRolePermissions(roleId: number) {
+    return request.get<any, number[]>(`/system/roles/${roleId}/permissions`)
   },
 
   getPermissionTree() {

@@ -31,7 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final StringRedisTemplate redisTemplate;
     
-    private static final String TOKEN_PREFIX = "token:";
+    private static final String ACCESS_TOKEN_PREFIX = "access_token:";
     
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -49,9 +49,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     Long userId = Long.parseLong(claims.getSubject());
                     String username = claims.get("username", String.class);
                     
-                    // 验证Redis中的令牌
-                    String storedToken = redisTemplate.opsForValue().get(TOKEN_PREFIX + userId);
-                    if (storedToken != null && storedToken.equals(token)) {
+                    // 验证Redis中的令牌（按token维度，支持多会话并存）
+                    String storedUserId = redisTemplate.opsForValue().get(ACCESS_TOKEN_PREFIX + token);
+                    if (storedUserId != null && storedUserId.equals(String.valueOf(userId))) {
                         // 获取角色和权限
                         @SuppressWarnings("unchecked")
                         List<String> roles = claims.get("roles", List.class);

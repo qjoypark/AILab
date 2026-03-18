@@ -19,10 +19,12 @@ echo.
 echo 2. Waiting for Nacos to become healthy...
 set "NACOS_READY=0"
 for /L %%i in (1,1,120) do (
+  set "PORT_9848_READY=0"
   for /f "delims=" %%a in ('curl -s --max-time 2 http://localhost:8848/nacos/v1/ns/operator/metrics 2^>nul') do (
     echo %%a | findstr /C:"\"status\":\"UP\"" >nul && set "NACOS_READY=1"
   )
-  if "!NACOS_READY!"=="1" goto nacos_ready
+  netstat -ano | findstr /R /C:":9848 .*LISTENING" >nul && set "PORT_9848_READY=1"
+  if "!NACOS_READY!"=="1" if "!PORT_9848_READY!"=="1" goto nacos_ready
   echo [%%i/120] Waiting Nacos...
   timeout /t 2 /nobreak >nul
 )
@@ -33,7 +35,7 @@ echo Please run: docker logs -f lab-nacos
 exit /b 1
 
 :nacos_ready
-echo Nacos is healthy.
+echo Nacos is healthy (8848 + 9848 ready).
 
 echo.
 echo =========================================

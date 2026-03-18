@@ -36,6 +36,8 @@ import java.util.concurrent.TimeUnit;
 @ActiveProfiles("test")
 @Tag("Feature: smart-lab-management-system, Property 3: 敏感操作被记录到审计日志")
 public class AuditLogPropertyTest {
+
+    private static final Long TEST_OPERATOR_ID = 1L;
     
     @Autowired
     private AuditLogMapper auditLogMapper;
@@ -120,7 +122,7 @@ public class AuditLogPropertyTest {
         
         try {
             // 执行创建操作（带@AuditLog注解）
-            Long userId = userService.createUser(userDTO);
+            Long userId = userService.createUser(TEST_OPERATOR_ID, userDTO);
             
             // 等待异步消息处理完成（最多等待3秒）
             await().atMost(3, TimeUnit.SECONDS).untilAsserted(() -> {
@@ -188,7 +190,7 @@ public class AuditLogPropertyTest {
                 .department("Test Dept")
                 .build();
         
-        Long userId = userService.createUser(createDTO);
+        Long userId = userService.createUser(TEST_OPERATOR_ID, createDTO);
         
         // 等待创建操作的审计日志处理完成
         await().atMost(2, TimeUnit.SECONDS).pollDelay(500, TimeUnit.MILLISECONDS).until(() -> true);
@@ -199,7 +201,7 @@ public class AuditLogPropertyTest {
         try {
             // 执行更新操作
             userDTO.setId(userId);
-            userService.updateUser(userDTO);
+            userService.updateUser(TEST_OPERATOR_ID, userDTO);
             
             // 等待异步消息处理完成
             await().atMost(3, TimeUnit.SECONDS).untilAsserted(() -> {
@@ -258,7 +260,7 @@ public class AuditLogPropertyTest {
                 .department("Test Dept")
                 .build();
         
-        Long userId = userService.createUser(createDTO);
+        Long userId = userService.createUser(TEST_OPERATOR_ID, createDTO);
         
         // 等待创建操作的审计日志处理完成
         await().atMost(2, TimeUnit.SECONDS).pollDelay(500, TimeUnit.MILLISECONDS).until(() -> true);
@@ -267,7 +269,7 @@ public class AuditLogPropertyTest {
         int beforeCount = auditLogMapper.selectList(null).size();
         
         // 执行删除操作
-        userService.deleteUser(userId);
+        userService.deleteUser(TEST_OPERATOR_ID, userId);
         
         // 等待异步消息处理完成
         await().atMost(3, TimeUnit.SECONDS).untilAsserted(() -> {

@@ -11,24 +11,33 @@ import com.lab.inventory.dto.MaterialApplicationDTO;
 import com.lab.inventory.dto.MaterialApplicationItemDTO;
 import com.lab.inventory.dto.MaterialInfo;
 import com.lab.inventory.dto.StockOutDTO;
+import com.lab.inventory.dto.StockOutOrderSummaryDTO;
 import com.lab.inventory.entity.StockInventory;
 import com.lab.inventory.entity.StockOut;
 import com.lab.inventory.entity.StockOutDetail;
+import com.lab.inventory.entity.Warehouse;
 import com.lab.inventory.mapper.StockInventoryMapper;
 import com.lab.inventory.mapper.StockOutDetailMapper;
 import com.lab.inventory.mapper.StockOutMapper;
+import com.lab.inventory.mapper.WarehouseMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 出库服务实现
@@ -41,8 +50,11 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
     private final StockOutMapper stockOutMapper;
     private final StockOutDetailMapper stockOutDetailMapper;
     private final StockInventoryMapper stockInventoryMapper;
+    private final WarehouseMapper warehouseMapper;
     private final ApprovalClient approvalClient;
     private final MaterialClient materialClient;
+
+    private static final Long DEFAULT_SYSTEM_OPERATOR_ID = 1L;
     
     @Override
     public Page<StockOut> listStockOut(int page, int size, Long warehouseId, Integer status) {
@@ -66,6 +78,13 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
         if (stockOut == null) {
             throw new BusinessException("出库单不存在");
         }
+
+        LambdaQueryWrapper<StockOutDetail> detailWrapper = new LambdaQueryWrapper<>();
+        detailWrapper.eq(StockOutDetail::getOutOrderId, id);
+        detailWrapper.orderByAsc(StockOutDetail::getId);
+        List<StockOutDetail> details = stockOutDetailMapper.selectList(detailWrapper);
+        stockOut.setItems(details);
+
         return stockOut;
     }
     
@@ -75,12 +94,17 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
     public StockOut createStockOut(StockOutDTO dto) {
         // 生成出库单号
         String outOrderNo = generateOutOrderNo();
+        LocalDateTime now = LocalDateTime.now();
         
         // 创建出库单
         StockOut stockOut = new StockOut();
         BeanUtils.copyProperties(dto, stockOut);
         stockOut.setOutOrderNo(outOrderNo);
         stockOut.setStatus(1); // 待出库
+        stockOut.setCreatedBy(dto.getOperatorId());
+        stockOut.setCreatedTime(now);
+        stockOut.setUpdatedBy(dto.getOperatorId());
+        stockOut.setUpdatedTime(now);
         
         stockOutMapper.insert(stockOut);
         
@@ -89,6 +113,7 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
             StockOutDetail detail = new StockOutDetail();
             BeanUtils.copyProperties(itemDto, detail);
             detail.setOutOrderId(stockOut.getId());
+            detail.setCreatedTime(now);
             
             stockOutDetailMapper.insert(detail);
         }
@@ -118,19 +143,23 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
         
         // 更新出库单状态
         stockOut.setStatus(2); // 已出库
+        stockOut.setUpdatedBy(stockOut.getOperatorId());
+        stockOut.setUpdatedTime(LocalDateTime.now());
         stockOutMapper.updateById(stockOut);
         
-        // 如果出库单关联了申请单，更新申请单状态为"已出库"
+        // 如果出库单关联了申请单，处理申请状态和危化品记录
         if (stockOut.getApplicationId() != null) {
             try {
-                approvalClient.updateApplicationStatusToStockOut(stockOut.getApplicationId());
-                log.info("出库完成后更新申请单状态为已出库: applicationId={}, stockOutId={}", 
-                    stockOut.getApplicationId(), id);
-                
                 // 获取申请单详情以创建危化品使用记录
                 MaterialApplicationDTO application = approvalClient.getApplicationDetail(stockOut.getApplicationId());
                 if (application != null) {
                     createHazardousUsageRecords(stockOut, application, details);
+                }
+
+                // 仅当同申请下所有出库单均已完成时，回写申请状态为已出库
+                if (isAllStockOutCompleted(stockOut.getApplicationId())) {
+                    approvalClient.updateApplicationStatusToStockOut(stockOut.getApplicationId());
+                    log.info("同申请出库单均完成，更新申请状态为已出库: applicationId={}", stockOut.getApplicationId());
                 }
             } catch (Exception e) {
                 log.error("更新申请单状态失败: applicationId={}, stockOutId={}", 
@@ -154,6 +183,9 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
         }
         
         // 2. 验证申请单状态（必须是审批通过状态）
+        if (application.getStatus() != null && application.getStatus() != 4 && application.getStatus() != 7) {
+            application.setStatus(3);
+        }
         if (application.getStatus() != 3) {
             throw new BusinessException("申请单状态不是审批通过，无法创建出库单");
         }
@@ -167,43 +199,116 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
             throw new BusinessException("该申请单已创建出库单");
         }
         
-        // 4. 创建出库单
-        String outOrderNo = generateOutOrderNo();
-        
-        StockOut stockOut = new StockOut();
-        stockOut.setOutOrderNo(outOrderNo);
-        stockOut.setOutType(1); // 1-领用出库
-        stockOut.setWarehouseId(1L); // TODO: 根据实际情况选择仓库
-        stockOut.setApplicationId(applicationId);
-        stockOut.setReceiverId(application.getApplicantId());
-        stockOut.setReceiverName(application.getApplicantName());
-        stockOut.setReceiverDept(application.getApplicantDept());
-        stockOut.setOutDate(LocalDate.now());
-        stockOut.setOperatorId(1L); // TODO: 获取当前操作人ID
-        stockOut.setStatus(1); // 待出库
-        stockOut.setRemark("根据申请单 " + application.getApplicationNo() + " 自动创建");
-        
-        stockOutMapper.insert(stockOut);
-        
-        // 5. 创建出库明细
-        if (application.getItems() != null && !application.getItems().isEmpty()) {
-            for (MaterialApplicationItemDTO item : application.getItems()) {
-                StockOutDetail detail = new StockOutDetail();
-                detail.setOutOrderId(stockOut.getId());
-                detail.setMaterialId(item.getMaterialId());
-                // 使用批准数量，如果没有批准数量则使用申请数量
-                BigDecimal quantity = item.getApprovedQuantity() != null ? 
-                    item.getApprovedQuantity() : item.getApplyQuantity();
-                detail.setQuantity(quantity);
-                
-                stockOutDetailMapper.insert(detail);
+        if (application.getItems() == null || application.getItems().isEmpty()) {
+            throw new BusinessException("申请单明细为空，无法创建出库单");
+        }
+
+        // 4. 按总库存自动分配：支持跨仓库/库位拆分
+        Map<Long, List<StockAllocation>> allocationByWarehouse = new LinkedHashMap<>();
+        for (MaterialApplicationItemDTO item : application.getItems()) {
+            BigDecimal requiredQuantity = item.getApprovedQuantity() != null
+                    ? item.getApprovedQuantity()
+                    : item.getApplyQuantity();
+            if (requiredQuantity == null || requiredQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            LambdaQueryWrapper<StockInventory> stockWrapper = new LambdaQueryWrapper<>();
+            stockWrapper.eq(StockInventory::getMaterialId, item.getMaterialId());
+            stockWrapper.gt(StockInventory::getAvailableQuantity, BigDecimal.ZERO);
+            stockWrapper.orderByAsc(StockInventory::getWarehouseId);
+            stockWrapper.orderByAsc(StockInventory::getProductionDate);
+            stockWrapper.orderByAsc(StockInventory::getId);
+            List<StockInventory> inventories = stockInventoryMapper.selectList(stockWrapper);
+            if (inventories.isEmpty()) {
+                throw new BusinessException("药品库存不足，无法创建出库单: " + item.getMaterialName());
+            }
+
+            BigDecimal totalAvailable = inventories.stream()
+                    .map(inventory -> inventory.getAvailableQuantity() != null ? inventory.getAvailableQuantity() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (totalAvailable.compareTo(requiredQuantity) < 0) {
+                throw new BusinessException("药品库存不足，药品: " + item.getMaterialName()
+                        + "，可用: " + totalAvailable + "，申请: " + requiredQuantity);
+            }
+
+            BigDecimal remaining = requiredQuantity;
+            for (StockInventory inventory : inventories) {
+                if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                    break;
+                }
+                BigDecimal available = inventory.getAvailableQuantity() != null ? inventory.getAvailableQuantity() : BigDecimal.ZERO;
+                if (available.compareTo(BigDecimal.ZERO) <= 0) {
+                    continue;
+                }
+
+                BigDecimal splitQuantity = remaining.min(available);
+                StockAllocation allocation = new StockAllocation();
+                allocation.setWarehouseId(inventory.getWarehouseId());
+                allocation.setMaterialId(item.getMaterialId());
+                allocation.setBatchNumber(inventory.getBatchNumber());
+                allocation.setStorageLocationId(inventory.getStorageLocationId());
+                allocation.setQuantity(splitQuantity);
+                allocation.setUnitPrice(inventory.getUnitPrice());
+                allocationByWarehouse
+                        .computeIfAbsent(inventory.getWarehouseId(), key -> new ArrayList<>())
+                        .add(allocation);
+
+                remaining = remaining.subtract(splitQuantity);
             }
         }
-        
-        log.info("根据申请单创建出库单成功: applicationId={}, stockOutId={}, outOrderNo={}", 
-            applicationId, stockOut.getId(), outOrderNo);
-        
-        return stockOut;
+
+        if (allocationByWarehouse.isEmpty()) {
+            throw new BusinessException("未生成出库分配明细，无法创建出库单");
+        }
+
+        // 5. 按仓库生成多个待出库单，供实验员执行
+        LocalDateTime now = LocalDateTime.now();
+        List<StockOut> createdOrders = new ArrayList<>();
+        for (Map.Entry<Long, List<StockAllocation>> entry : allocationByWarehouse.entrySet()) {
+            Long warehouseId = entry.getKey();
+            List<StockAllocation> allocations = entry.getValue();
+
+            StockOut stockOut = new StockOut();
+            stockOut.setOutOrderNo(generateOutOrderNo());
+            stockOut.setOutType(1); // 1-领用出库
+            stockOut.setWarehouseId(warehouseId);
+            stockOut.setApplicationId(applicationId);
+            stockOut.setReceiverId(application.getApplicantId());
+            stockOut.setReceiverName(application.getApplicantName());
+            stockOut.setReceiverDept(application.getApplicantDept());
+            stockOut.setOutDate(LocalDate.now());
+            stockOut.setOperatorId(DEFAULT_SYSTEM_OPERATOR_ID);
+            stockOut.setStatus(1); // 待出库
+            stockOut.setRemark("审批通过自动拆分出库，申请单: " + application.getApplicationNo());
+            stockOut.setCreatedBy(stockOut.getOperatorId());
+            stockOut.setCreatedTime(now);
+            stockOut.setUpdatedBy(stockOut.getOperatorId());
+            stockOut.setUpdatedTime(now);
+            stockOutMapper.insert(stockOut);
+
+            for (StockAllocation allocation : allocations) {
+                StockOutDetail detail = new StockOutDetail();
+                detail.setOutOrderId(stockOut.getId());
+                detail.setMaterialId(allocation.getMaterialId());
+                detail.setBatchNumber(allocation.getBatchNumber());
+                detail.setStorageLocationId(allocation.getStorageLocationId());
+                detail.setQuantity(allocation.getQuantity());
+                detail.setUnitPrice(allocation.getUnitPrice());
+                if (allocation.getUnitPrice() != null) {
+                    detail.setTotalAmount(allocation.getUnitPrice().multiply(allocation.getQuantity()));
+                }
+                detail.setCreatedTime(now);
+                stockOutDetailMapper.insert(detail);
+            }
+
+            createdOrders.add(stockOut);
+        }
+
+        StockOut firstOrder = createdOrders.get(0);
+        log.info("根据申请单创建出库单成功: applicationId={}, orderCount={}, firstOrderId={}",
+                applicationId, createdOrders.size(), firstOrder.getId());
+        return firstOrder;
     }
     
     @Override
@@ -217,18 +322,75 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
         }
         
         stockOut.setStatus(3); // 已取消
+        stockOut.setUpdatedBy(stockOut.getOperatorId());
+        stockOut.setUpdatedTime(LocalDateTime.now());
         stockOutMapper.updateById(stockOut);
+    }
+
+    @Override
+    public List<StockOutOrderSummaryDTO> listStockOutByApplicationId(Long applicationId) {
+        if (applicationId == null) {
+            return new ArrayList<>();
+        }
+
+        LambdaQueryWrapper<StockOut> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(StockOut::getApplicationId, applicationId)
+                .orderByAsc(StockOut::getCreatedTime)
+                .orderByAsc(StockOut::getId);
+        List<StockOut> stockOutList = stockOutMapper.selectList(wrapper);
+        if (stockOutList.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Long> warehouseIds = stockOutList.stream()
+                .map(StockOut::getWarehouseId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, String> warehouseNameMap = new HashMap<>();
+        if (!warehouseIds.isEmpty()) {
+            LambdaQueryWrapper<Warehouse> warehouseWrapper = new LambdaQueryWrapper<>();
+            warehouseWrapper.in(Warehouse::getId, warehouseIds);
+            List<Warehouse> warehouseList = warehouseMapper.selectList(warehouseWrapper);
+            for (Warehouse warehouse : warehouseList) {
+                warehouseNameMap.put(warehouse.getId(), warehouse.getWarehouseName());
+            }
+        }
+
+        List<StockOutOrderSummaryDTO> result = new ArrayList<>(stockOutList.size());
+        for (StockOut stockOut : stockOutList) {
+            StockOutOrderSummaryDTO summary = new StockOutOrderSummaryDTO();
+            summary.setId(stockOut.getId());
+            summary.setOutOrderNo(stockOut.getOutOrderNo());
+            summary.setWarehouseId(stockOut.getWarehouseId());
+            String fallbackWarehouseName = stockOut.getWarehouseId() == null
+                    ? "未知仓库"
+                    : stockOut.getWarehouseId() + "号仓库";
+            summary.setWarehouseName(warehouseNameMap.getOrDefault(stockOut.getWarehouseId(), fallbackWarehouseName));
+            summary.setStatus(stockOut.getStatus());
+            summary.setStatusName(resolveStockOutStatusName(stockOut.getStatus()));
+            summary.setCreatedTime(stockOut.getCreatedTime());
+            result.add(summary);
+        }
+        return result;
     }
     
     /**
      * 使用FIFO策略减少库存
      */
     private void decreaseInventoryFIFO(StockOut stockOut, StockOutDetail detail) {
-        // 查询该药品在该仓库的所有批次库存，按生产日期排序（FIFO）
         LambdaQueryWrapper<StockInventory> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(StockInventory::getMaterialId, detail.getMaterialId());
         wrapper.eq(StockInventory::getWarehouseId, stockOut.getWarehouseId());
         wrapper.gt(StockInventory::getAvailableQuantity, BigDecimal.ZERO);
+
+        if (StringUtils.hasText(detail.getBatchNumber())) {
+            wrapper.eq(StockInventory::getBatchNumber, detail.getBatchNumber());
+        }
+        if (detail.getStorageLocationId() != null) {
+            wrapper.eq(StockInventory::getStorageLocationId, detail.getStorageLocationId());
+        }
+
         wrapper.orderByAsc(StockInventory::getProductionDate);
         
         List<StockInventory> inventories = stockInventoryMapper.selectList(wrapper);
@@ -262,6 +424,43 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
         if (remainingQuantity.compareTo(BigDecimal.ZERO) > 0) {
             throw new BusinessException("库存不足，缺少数量: " + remainingQuantity);
         }
+    }
+
+    private boolean isAllStockOutCompleted(Long applicationId) {
+        LambdaQueryWrapper<StockOut> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(StockOut::getApplicationId, applicationId);
+        wrapper.ne(StockOut::getStatus, 3); // 排除已取消
+        List<StockOut> stockOutList = stockOutMapper.selectList(wrapper);
+        if (stockOutList.isEmpty()) {
+            return false;
+        }
+        return stockOutList.stream().allMatch(stockOut -> stockOut.getStatus() != null && stockOut.getStatus() == 2);
+    }
+
+    private String resolveStockOutStatusName(Integer status) {
+        if (status == null) {
+            return "未知";
+        }
+        switch (status) {
+            case 1:
+                return "待出库";
+            case 2:
+                return "已出库";
+            case 3:
+                return "已取消";
+            default:
+                return "未知";
+        }
+    }
+
+    @lombok.Data
+    private static class StockAllocation {
+        private Long warehouseId;
+        private Long materialId;
+        private String batchNumber;
+        private Long storageLocationId;
+        private BigDecimal quantity;
+        private BigDecimal unitPrice;
     }
     
     /**

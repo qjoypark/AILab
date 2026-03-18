@@ -3,6 +3,7 @@ package com.lab.inventory.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lab.common.result.Result;
 import com.lab.inventory.dto.StockOutDTO;
+import com.lab.inventory.dto.StockOutOrderSummaryDTO;
 import com.lab.inventory.entity.StockOut;
 import com.lab.inventory.service.StockOutService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,6 +42,12 @@ public class StockOutController {
     public Result<StockOut> getStockOut(@PathVariable Long id) {
         StockOut stockOut = stockOutService.getStockOutById(id);
         return Result.success(stockOut);
+    }
+
+    @Operation(summary = "按申请单查询已生成出库单")
+    @GetMapping("/application/{applicationId}/orders")
+    public Result<List<StockOutOrderSummaryDTO>> listByApplication(@PathVariable Long applicationId) {
+        return Result.success(stockOutService.listStockOutByApplicationId(applicationId));
     }
     
     @Operation(summary = "创建出库单")

@@ -66,7 +66,7 @@ services:
 
   # Nacos (使用ARM64兼容版本)
   nacos:
-    image: nacos/nacos-server:v2.3.0-slim
+    image: nacos/nacos-server:v2.2.1-slim
     container_name: lab-nacos
     ports:
       - "8848:8848"
@@ -74,6 +74,10 @@ services:
     environment:
       MODE: standalone
       PREFER_HOST_MODE: hostname
+      NACOS_AUTH_ENABLE: "false"
+      NACOS_AUTH_IDENTITY_KEY: serverIdentity
+      NACOS_AUTH_IDENTITY_VALUE: security
+      NACOS_AUTH_TOKEN: VGhpcy1pcy1hLWxvbmctYmFzZTY0LXRva2VuLWZvci1uYWNvcy0yLjIuMQ==
     volumes:
       - nacos-data:/home/nacos/data
     restart: unless-stopped

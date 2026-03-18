@@ -33,7 +33,14 @@ public class StockInServiceImpl implements com.lab.inventory.service.StockInServ
     private final StockInventoryMapper stockInventoryMapper;
     
     @Override
-    public Page<StockIn> listStockIn(int page, int size, Long warehouseId, Integer status) {
+    public Page<StockIn> listStockIn(
+            int page,
+            int size,
+            Long warehouseId,
+            Integer status,
+            LocalDateTime createdTimeStart,
+            LocalDateTime createdTimeEnd
+    ) {
         Page<StockIn> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<StockIn> wrapper = new LambdaQueryWrapper<>();
         
@@ -42,6 +49,12 @@ public class StockInServiceImpl implements com.lab.inventory.service.StockInServ
         }
         if (status != null) {
             wrapper.eq(StockIn::getStatus, status);
+        }
+        if (createdTimeStart != null) {
+            wrapper.ge(StockIn::getCreatedTime, createdTimeStart);
+        }
+        if (createdTimeEnd != null) {
+            wrapper.le(StockIn::getCreatedTime, createdTimeEnd);
         }
         
         wrapper.orderByDesc(StockIn::getCreatedTime);
@@ -54,6 +67,13 @@ public class StockInServiceImpl implements com.lab.inventory.service.StockInServ
         if (stockIn == null) {
             throw new BusinessException("入库单不存在");
         }
+
+        LambdaQueryWrapper<StockInDetail> detailWrapper = new LambdaQueryWrapper<>();
+        detailWrapper.eq(StockInDetail::getInOrderId, id);
+        detailWrapper.orderByAsc(StockInDetail::getId);
+        List<StockInDetail> details = stockInDetailMapper.selectList(detailWrapper);
+        stockIn.setItems(details);
+
         return stockIn;
     }
     
@@ -63,12 +83,17 @@ public class StockInServiceImpl implements com.lab.inventory.service.StockInServ
     public StockIn createStockIn(StockInDTO dto) {
         // 生成入库单号
         String inOrderNo = generateInOrderNo();
+        LocalDateTime now = LocalDateTime.now();
         
         // 创建入库单
         StockIn stockIn = new StockIn();
         BeanUtils.copyProperties(dto, stockIn);
         stockIn.setInOrderNo(inOrderNo);
         stockIn.setStatus(1); // 待入库
+        stockIn.setCreatedBy(dto.getOperatorId());
+        stockIn.setCreatedTime(now);
+        stockIn.setUpdatedBy(dto.getOperatorId());
+        stockIn.setUpdatedTime(now);
         
         // 计算总金额
         BigDecimal totalAmount = dto.getItems().stream()
@@ -87,6 +112,7 @@ public class StockInServiceImpl implements com.lab.inventory.service.StockInServ
             StockInDetail detail = new StockInDetail();
             BeanUtils.copyProperties(itemDto, detail);
             detail.setInOrderId(stockIn.getId());
+            detail.setCreatedTime(now);
             
             if (itemDto.getUnitPrice() != null) {
                 detail.setTotalAmount(itemDto.getQuantity().multiply(itemDto.getUnitPrice()));
@@ -120,6 +146,8 @@ public class StockInServiceImpl implements com.lab.inventory.service.StockInServ
         
         // 更新入库单状态
         stockIn.setStatus(2); // 已入库
+        stockIn.setUpdatedBy(stockIn.getOperatorId());
+        stockIn.setUpdatedTime(LocalDateTime.now());
         stockInMapper.updateById(stockIn);
     }
     
@@ -134,6 +162,8 @@ public class StockInServiceImpl implements com.lab.inventory.service.StockInServ
         }
         
         stockIn.setStatus(3); // 已取消
+        stockIn.setUpdatedBy(stockIn.getOperatorId());
+        stockIn.setUpdatedTime(LocalDateTime.now());
         stockInMapper.updateById(stockIn);
     }
     

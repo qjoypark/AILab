@@ -11,7 +11,6 @@
         </div>
       </template>
 
-      <!-- 搜索表单 -->
       <el-form :model="queryForm" inline>
         <el-form-item label="关键词">
           <el-input v-model="queryForm.keyword" placeholder="申请单号" clearable />
@@ -31,7 +30,6 @@
         </el-form-item>
       </el-form>
 
-      <!-- 申请列表 -->
       <el-table :data="applicationList" border stripe v-loading="loading">
         <el-table-column prop="applicationCode" label="申请单号" width="180" />
         <el-table-column prop="applicantName" label="申请人" width="100" />
@@ -62,7 +60,6 @@
         </el-table-column>
       </el-table>
 
-      <!-- 分页 -->
       <el-pagination
         v-model:current-page="queryForm.page"
         v-model:page-size="queryForm.size"
@@ -74,7 +71,6 @@
       />
     </el-card>
 
-    <!-- 申请表单对话框 -->
     <el-dialog
       v-model="dialogVisible"
       title="新建申请"
@@ -96,22 +92,38 @@
         <el-form-item label="期望日期" prop="expectedDate">
           <el-date-picker v-model="applicationForm.expectedDate" type="date" style="width: 100%" />
         </el-form-item>
-        
+
         <el-divider>申请明细</el-divider>
-        
+
         <el-button type="primary" size="small" @click="handleAddItem" style="margin-bottom: 10px">
           添加药品
         </el-button>
-        
+
         <el-table :data="applicationForm.items" border>
-          <el-table-column label="药品" width="200">
+          <el-table-column label="药品" width="220">
             <template #default="{ row, $index }">
-              <el-input v-model="row.materialName" placeholder="选择药品" readonly @click="selectMaterial($index)" />
+              <el-input
+                v-model="row.materialName"
+                placeholder="选择药品"
+                readonly
+                @click="selectMaterial($index)"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="总可用库存" width="130" align="right">
+            <template #default="{ row }">
+              {{ row.availableStock ?? '-' }}
             </template>
           </el-table-column>
           <el-table-column label="申请数量" width="150">
             <template #default="{ row }">
-              <el-input-number v-model="row.requestedQuantity" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number
+                v-model="row.requestedQuantity"
+                :min="0"
+                :max="row.availableStock && row.availableStock > 0 ? row.availableStock : undefined"
+                :precision="2"
+                style="width: 100%"
+              />
             </template>
           </el-table-column>
           <el-table-column label="单位" width="80">
@@ -137,7 +149,6 @@
       </template>
     </el-dialog>
 
-    <!-- 查看详情对话框 -->
     <el-dialog v-model="viewDialogVisible" title="申请详情" width="900px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="申请单号">{{ currentApplication?.applicationCode }}</el-descriptions-item>
@@ -150,14 +161,31 @@
           <el-tag v-else-if="currentApplication?.status === 4" type="info">已出库</el-tag>
           <el-tag v-else type="info">已取消</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="用途" :span="2">{{ currentApplication?.applicationPurpose }}</el-descriptions-item>
+        <el-descriptions-item label="出库流程" :span="2">
+          <el-tag v-if="currentApplication?.stockOutFlowStatus === 2" type="success">已全部出库</el-tag>
+          <el-tag v-else-if="currentApplication?.stockOutFlowStatus === 1" type="warning">出库流程中</el-tag>
+          <el-tag v-else type="info">未生成出库单</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="申请用途" :span="2">{{ currentApplication?.applicationPurpose }}</el-descriptions-item>
         <el-descriptions-item label="使用地点">{{ currentApplication?.usageLocation }}</el-descriptions-item>
         <el-descriptions-item label="期望日期">{{ currentApplication?.expectedDate }}</el-descriptions-item>
         <el-descriptions-item label="申请时间" :span="2">{{ currentApplication?.createdTime }}</el-descriptions-item>
+        <el-descriptions-item label="出库单号" :span="2">
+          <el-space wrap v-if="currentApplication?.stockOutOrders?.length">
+            <el-tag
+              v-for="order in currentApplication?.stockOutOrders"
+              :key="order.id"
+              type="info"
+            >
+              {{ order.outOrderNo }}（{{ order.warehouseName || '未知仓库' }} / {{ order.statusName || '-' }}）
+            </el-tag>
+          </el-space>
+          <span v-else>-</span>
+        </el-descriptions-item>
       </el-descriptions>
-      
+
       <el-divider>申请明细</el-divider>
-      
+
       <el-table :data="currentApplication?.items" border>
         <el-table-column prop="materialCode" label="药品编码" />
         <el-table-column prop="materialName" label="药品名称" />
@@ -166,9 +194,9 @@
         <el-table-column prop="unit" label="单位" />
         <el-table-column prop="usagePurpose" label="用途说明" />
       </el-table>
-      
+
       <el-divider>审批记录</el-divider>
-      
+
       <el-timeline>
         <el-timeline-item
           v-for="record in currentApplication?.approvalRecords"
@@ -187,6 +215,11 @@
         </el-timeline-item>
       </el-timeline>
     </el-dialog>
+
+    <StockMaterialSelector
+      v-model="materialSelectorVisible"
+      @select="handleMaterialSelected"
+    />
   </div>
 </template>
 
@@ -194,7 +227,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { approvalApi } from '@/api/approval'
-import type { MaterialApplication, ApplicationForm, ApplicationQuery, MaterialApplicationItem } from '@/types/approval'
+import type { MaterialApplication, ApplicationForm, ApplicationQuery } from '@/types/approval'
+import StockMaterialSelector from '@/components/StockMaterialSelector.vue'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -203,6 +237,8 @@ const viewDialogVisible = ref(false)
 const formRef = ref<FormInstance>()
 const applicationList = ref<MaterialApplication[]>([])
 const currentApplication = ref<MaterialApplication>()
+const materialSelectorVisible = ref(false)
+const currentMaterialIndex = ref<number>(-1)
 const total = ref(0)
 
 const queryForm = reactive<ApplicationQuery>({
@@ -236,8 +272,10 @@ const loadApplicationList = async () => {
   }
 }
 
-const handleQuery = () => {
-  queryForm.page = 1
+const handleQuery = (trigger?: number | Event) => {
+  if (typeof trigger !== 'number') {
+    queryForm.page = 1
+  }
   loadApplicationList()
 }
 
@@ -261,6 +299,7 @@ const handleAddItem = () => {
   applicationForm.items.push({
     materialId: 0,
     materialName: '',
+    availableStock: 0,
     requestedQuantity: 0,
     unit: '',
     usagePurpose: ''
@@ -272,21 +311,60 @@ const handleRemoveItem = (index: number) => {
 }
 
 const selectMaterial = (index: number) => {
-  // TODO: 实现药品选择对话框
-  ElMessage.info('药品选择功能待实现')
+  currentMaterialIndex.value = index
+  materialSelectorVisible.value = true
+}
+
+const handleMaterialSelected = (material: {
+  materialId: number
+  materialCode: string
+  materialName: string
+  unit?: string
+  availableQuantity: number
+}) => {
+  const row = applicationForm.items[currentMaterialIndex.value]
+  if (!row) {
+    return
+  }
+
+  row.materialId = material.materialId
+  row.materialCode = material.materialCode
+  row.materialName = material.materialName
+  row.unit = material.unit
+  row.availableStock = material.availableQuantity
+  if (row.requestedQuantity <= 0) {
+    row.requestedQuantity = material.availableQuantity > 0 ? 1 : 0
+  } else if (material.availableQuantity > 0 && row.requestedQuantity > material.availableQuantity) {
+    row.requestedQuantity = material.availableQuantity
+  }
 }
 
 const handleSubmit = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     if (applicationForm.items.length === 0) {
       ElMessage.warning('请添加申请明细')
       return
     }
-    
+
+    for (const item of applicationForm.items) {
+      if (!item.materialId) {
+        ElMessage.warning('请选择药品')
+        return
+      }
+      if (item.requestedQuantity <= 0) {
+        ElMessage.warning(`药品 ${item.materialName || item.materialId} 的申请数量必须大于0`)
+        return
+      }
+      if (item.availableStock !== undefined && item.availableStock >= 0 && item.requestedQuantity > item.availableStock) {
+        ElMessage.warning(`药品 ${item.materialName || item.materialId} 的申请数量不能超过可用库存`)
+        return
+      }
+    }
+
     submitting.value = true
     try {
       await approvalApi.createApplication(applicationForm)
@@ -316,7 +394,7 @@ const handleCancel = async (row: MaterialApplication) => {
     cancelButtonText: '取消',
     type: 'warning'
   })
-  
+
   try {
     await approvalApi.cancelApplication(row.id)
     ElMessage.success('取消成功')
@@ -351,3 +429,4 @@ onMounted(() => {
   justify-content: flex-end;
 }
 </style>
+

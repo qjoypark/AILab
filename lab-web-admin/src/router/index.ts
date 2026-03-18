@@ -1,6 +1,16 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
+import {
+  ALERT_PERMISSIONS,
+  APPROVAL_PERMISSIONS,
+  HAZARDOUS_PERMISSIONS,
+  INVENTORY_STOCK_CHECK_PERMISSIONS,
+  INVENTORY_STOCK_IN_PERMISSIONS,
+  INVENTORY_STOCK_OUT_PERMISSIONS,
+  INVENTORY_STOCK_PERMISSIONS,
+  MATERIAL_PERMISSIONS
+} from '@/constants/permissions'
 
 const normalizeToken = (value: unknown): string => {
   if (typeof value === 'string') {
@@ -42,76 +52,99 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '首页' }
       },
       {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('@/views/Profile.vue'),
+        meta: { title: '个人信息' }
+      },
+      {
         path: 'system/users',
         name: 'UserManagement',
         component: () => import('@/views/system/UserManagement.vue'),
-        meta: { title: '用户管理', permissions: ['system:user:list'] }
+        meta: { title: '用户管理', roles: ['ADMIN', 'CENTER_ADMIN'] }
       },
       {
         path: 'system/roles',
         name: 'RoleManagement',
         component: () => import('@/views/system/RoleManagement.vue'),
-        meta: { title: '角色管理', permissions: ['system:role:list'] }
+        meta: { title: '角色管理', roles: ['ADMIN'] }
+      },
+      {
+        path: 'system/warehouses',
+        name: 'WarehouseManagement',
+        component: () => import('@/views/inventory/WarehouseManagement.vue'),
+        meta: { title: '仓库管理', roles: ['ADMIN'] }
+      },
+      {
+        path: 'inventory/warehouses',
+        redirect: '/system/warehouses',
+        meta: { requiresAuth: true, roles: ['ADMIN'] }
       },
       {
         path: 'materials',
         name: 'MaterialList',
         component: () => import('@/views/material/MaterialList.vue'),
-        meta: { title: '药品管理', permissions: ['material:list'] }
+        meta: { title: '药品列表', permissions: MATERIAL_PERMISSIONS }
+      },
+      {
+        path: 'instruments',
+        name: 'InstrumentList',
+        component: () => import('@/views/material/InstrumentList.vue'),
+        meta: { title: '仪器列表', permissions: MATERIAL_PERMISSIONS }
       },
       {
         path: 'inventory/stock',
         name: 'StockList',
         component: () => import('@/views/inventory/StockList.vue'),
-        meta: { title: '库存查询', permissions: ['inventory:stock:list'] }
+        meta: { title: '库存查询', permissions: INVENTORY_STOCK_PERMISSIONS }
       },
       {
         path: 'inventory/stock-in',
         name: 'StockInManagement',
         component: () => import('@/views/inventory/StockInManagement.vue'),
-        meta: { title: '入库管理', permissions: ['inventory:stock-in:list'] }
+        meta: { title: '入库管理', permissions: INVENTORY_STOCK_IN_PERMISSIONS }
       },
       {
         path: 'applications',
         name: 'ApplicationList',
         component: () => import('@/views/approval/ApplicationList.vue'),
-        meta: { title: '领用申请', permissions: ['application:list'] }
+        meta: { title: '领用申请', permissions: APPROVAL_PERMISSIONS }
       },
       {
         path: 'approval/todo',
         name: 'ApprovalTodo',
         component: () => import('@/views/approval/ApprovalTodo.vue'),
-        meta: { title: '待审批事项', permissions: ['application:approve'] }
+        meta: { title: '待审批事项', permissions: APPROVAL_PERMISSIONS }
       },
       {
         path: 'inventory/stock-out',
         name: 'StockOutManagement',
         component: () => import('@/views/inventory/StockOutManagement.vue'),
-        meta: { title: '出库管理', permissions: ['inventory:stock-out:list'] }
+        meta: { title: '出库管理', permissions: INVENTORY_STOCK_OUT_PERMISSIONS }
       },
       {
         path: 'inventory/stock-check',
         name: 'StockCheckManagement',
         component: () => import('@/views/inventory/StockCheckManagement.vue'),
-        meta: { title: '库存盘点', permissions: ['inventory:stock-check:list'] }
+        meta: { title: '库存盘点', permissions: INVENTORY_STOCK_CHECK_PERMISSIONS }
       },
       {
         path: 'hazardous/usage-records',
         name: 'UsageRecordList',
         component: () => import('@/views/hazardous/UsageRecordList.vue'),
-        meta: { title: '危化品使用记录', permissions: ['hazardous:usage:list'] }
+        meta: { title: '危化品使用记录', permissions: HAZARDOUS_PERMISSIONS }
       },
       {
         path: 'hazardous/ledger',
         name: 'HazardousLedger',
         component: () => import('@/views/hazardous/HazardousLedger.vue'),
-        meta: { title: '危化品台账', permissions: ['hazardous:ledger:view'] }
+        meta: { title: '危化品台账', permissions: HAZARDOUS_PERMISSIONS }
       },
       {
         path: 'alerts',
         name: 'AlertList',
         component: () => import('@/views/alert/AlertList.vue'),
-        meta: { title: '预警管理', permissions: ['alert:list'] }
+        meta: { title: '预警管理', permissions: ALERT_PERMISSIONS }
       },
       {
         path: 'notifications',
@@ -128,25 +161,35 @@ const router = createRouter({
   routes
 })
 
-// 路由守卫
 router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
   const requiresAuth = to.meta.requiresAuth !== false
   const accessToken = normalizeToken(userStore.token)
-  
-  // 需要认证但没有token
+
+  if (to.path === from.path) {
+    next()
+    return
+  }
+
   if (requiresAuth && !accessToken) {
     next('/login')
     return
   }
-  
-  // 已登录访问登录页，重定向到首页
+
   if (to.path === '/login' && accessToken) {
     next('/')
     return
   }
-  
-  // 检查权限
+
+  if (requiresAuth && to.meta.roles) {
+    const roles = to.meta.roles as string[]
+    if (!userStore.hasRole(roles)) {
+      ElMessage.error('没有权限访问该页面')
+      next(from.path || '/')
+      return
+    }
+  }
+
   if (requiresAuth && to.meta.permissions) {
     const permissions = to.meta.permissions as string[]
     if (!userStore.hasAnyPermission(permissions)) {
@@ -155,7 +198,7 @@ router.beforeEach(async (to, from, next) => {
       return
     }
   }
-  
+
   next()
 })
 

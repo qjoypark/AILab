@@ -11,6 +11,8 @@ import type {
   StockCheckForm,
   StockCheckDetail,
   Warehouse,
+  WarehouseQuery,
+  WarehouseForm,
   StorageLocation
 } from '@/types/inventory'
 
@@ -38,19 +40,45 @@ const mapStockInventory = (item: any): StockInventory => ({
 const mapStockIn = (item: any): StockIn => ({
   ...item,
   stockInCode: item.stockInCode ?? item.inOrderNo,
-  stockInType: item.stockInType ?? item.inType
+  stockInType: item.stockInType ?? item.inType,
+  status: item.status === 1 ? 0 : item.status === 2 ? 1 : 2,
+  items: (item.items ?? []).map((detail: any) => ({
+    ...detail,
+    stockInId: detail.stockInId ?? detail.inOrderId,
+    expiryDate: detail.expiryDate ?? detail.expireDate,
+    totalPrice: detail.totalPrice ?? detail.totalAmount,
+    locationId: detail.locationId ?? detail.storageLocationId
+  }))
 })
 
 const mapStockOut = (item: any): StockOut => ({
   ...item,
   stockOutCode: item.stockOutCode ?? item.outOrderNo,
-  stockOutType: item.stockOutType ?? item.outType
+  stockOutType: item.stockOutType ?? item.outType,
+  status: item.status === 1 ? 0 : item.status === 2 ? 1 : 2,
+  createdBy: item.createdBy ?? item.operatorId,
+  createdTime: item.createdTime ?? item.outDate,
+  items: (item.items ?? []).map((detail: any) => ({
+    ...detail,
+    stockOutId: detail.stockOutId ?? detail.outOrderId,
+    totalPrice: detail.totalPrice ?? detail.totalAmount,
+    locationId: detail.locationId ?? detail.storageLocationId
+  }))
 })
 
 const mapStockCheck = (item: any): StockCheck => ({
   ...item,
   checkCode: item.checkCode ?? item.checkNo,
-  checkType: item.checkType ?? 1
+  checkType: item.checkType ?? 1,
+  status: item.status === 1 ? 0 : item.status === 2 ? 1 : 2,
+  createdBy: item.createdBy ?? item.checkerId,
+  completedTime: item.completedTime ?? (item.status === 2 ? item.updatedTime : undefined),
+  items: (item.items ?? []).map((detail: any) => ({
+    ...detail,
+    differenceQuantity: detail.differenceQuantity ?? detail.diffQuantity,
+    differenceReason: detail.differenceReason ?? detail.diffReason,
+    locationId: detail.locationId ?? detail.storageLocationId
+  }))
 })
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -72,9 +100,21 @@ export const inventoryApi = {
       .then(list => list.map(mapStockInventory))
   },
 
-  getStockInList(params: { keyword?: string; status?: number; page?: number; size?: number }) {
+  getStockInList(params: {
+    keyword?: string
+    status?: number
+    createdTimeStart?: string
+    createdTimeEnd?: string
+    page?: number
+    size?: number
+  }) {
+    const mappedParams = {
+      ...params,
+      status: params.status === undefined ? undefined : (params.status === 0 ? 1 : params.status === 1 ? 2 : 3)
+    }
+
     return request
-      .get<any, PageResult<StockIn>>('/inventory/stock-in', { params })
+      .get<any, PageResult<StockIn>>('/inventory/stock-in', { params: mappedParams })
       .then(result => toListResult(result, mapStockIn))
   },
 
@@ -112,8 +152,13 @@ export const inventoryApi = {
   },
 
   getStockOutList(params: { keyword?: string; status?: number; page?: number; size?: number }) {
+    const mappedParams = {
+      ...params,
+      status: params.status === undefined ? undefined : (params.status === 0 ? 1 : params.status === 1 ? 2 : 3)
+    }
+
     return request
-      .get<any, PageResult<StockOut>>('/inventory/stock-out', { params })
+      .get<any, PageResult<StockOut>>('/inventory/stock-out', { params: mappedParams })
       .then(result => toListResult(result, mapStockOut))
   },
 
@@ -149,8 +194,13 @@ export const inventoryApi = {
   },
 
   getStockCheckList(params: { keyword?: string; status?: number; page?: number; size?: number }) {
+    const mappedParams = {
+      ...params,
+      status: params.status === undefined ? undefined : (params.status === 0 ? 1 : params.status === 1 ? 2 : 3)
+    }
+
     return request
-      .get<any, PageResult<StockCheck>>('/inventory/stock-check', { params })
+      .get<any, PageResult<StockCheck>>('/inventory/stock-check', { params: mappedParams })
       .then(result => toListResult(result, mapStockCheck))
   },
 
@@ -195,6 +245,28 @@ export const inventoryApi = {
         }
       })
       .then(result => result?.records ?? result?.list ?? [])
+  },
+
+  getWarehousePage(params: WarehouseQuery) {
+    return request
+      .get<any, PageResult<Warehouse>>('/inventory/warehouses', { params })
+      .then(result => toListResult(result))
+  },
+
+  getWarehouseById(id: number) {
+    return request.get<any, Warehouse>(`/inventory/warehouses/${id}`)
+  },
+
+  createWarehouse(data: WarehouseForm) {
+    return request.post<any, Warehouse>('/inventory/warehouses', data)
+  },
+
+  updateWarehouse(id: number, data: WarehouseForm) {
+    return request.put<any, Warehouse>(`/inventory/warehouses/${id}`, data)
+  },
+
+  deleteWarehouse(id: number) {
+    return request.delete(`/inventory/warehouses/${id}`)
   },
 
   getLocationList(warehouseId: number) {

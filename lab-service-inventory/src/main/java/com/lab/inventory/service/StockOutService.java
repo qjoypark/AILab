@@ -1,8 +1,11 @@
 package com.lab.inventory.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.lab.inventory.dto.StockOutOrderSummaryDTO;
 import com.lab.inventory.dto.StockOutDTO;
 import com.lab.inventory.entity.StockOut;
+
+import java.util.List;
 
 /**
  * 出库服务接口
@@ -41,4 +44,12 @@ public interface StockOutService {
      * @return 出库单
      */
     StockOut createStockOutFromApplication(Long applicationId);
+
+    /**
+     * 根据申请单查询已生成的出库单列表（含仓库与状态信息）
+     *
+     * @param applicationId 申请单ID
+     * @return 出库单摘要列表
+     */
+    List<StockOutOrderSummaryDTO> listStockOutByApplicationId(Long applicationId);
 }

@@ -1,6 +1,5 @@
 <template>
   <div class="dashboard">
-    <!-- 统计卡片 -->
     <el-row :gutter="20" style="margin-bottom: 20px">
       <el-col :span="6">
         <el-card shadow="hover">
@@ -40,7 +39,6 @@
       </el-col>
     </el-row>
 
-    <!-- 快捷入口 -->
     <el-card style="margin-bottom: 20px">
       <template #header>
         <span>快捷入口</span>
@@ -58,7 +56,6 @@
     </el-card>
 
     <el-row :gutter="20">
-      <!-- 待办事项 -->
       <el-col :span="12">
         <el-card>
           <template #header>
@@ -75,7 +72,6 @@
         </el-card>
       </el-col>
 
-      <!-- 最新消息 -->
       <el-col :span="12">
         <el-card>
           <template #header>
@@ -87,7 +83,7 @@
           <el-table :data="messageList" :show-header="false" max-height="300">
             <el-table-column width="60">
               <template #default="{ row }">
-                <el-icon v-if="!row.isRead" color="#409eff"><CircleFilled /></el-icon>
+                <el-icon v-if="row.isRead === 0" color="#409eff"><CircleFilled /></el-icon>
               </template>
             </el-table-column>
             <el-table-column prop="title" show-overflow-tooltip />
@@ -98,7 +94,6 @@
       </el-col>
     </el-row>
 
-    <!-- 预警列表 -->
     <el-card style="margin-top: 20px">
       <template #header>
         <div class="card-header">
@@ -109,14 +104,15 @@
       <el-table :data="alertList" border stripe max-height="300">
         <el-table-column prop="alertType" label="类型" width="120">
           <template #default="{ row }">
-            <el-tag v-if="row.alertType === 'LOW_STOCK'" type="warning">低库存</el-tag>
-            <el-tag v-else-if="row.alertType === 'EXPIRY_WARNING'" type="info">有效期</el-tag>
-            <el-tag v-else type="danger">危化品异常</el-tag>
+            <el-tag v-if="row.alertType === 1" type="warning">低库存</el-tag>
+            <el-tag v-else-if="row.alertType === 2" type="info">有效期</el-tag>
+            <el-tag v-else-if="row.alertType === 4" type="danger">账实差异</el-tag>
+            <el-tag v-else>其他</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="materialName" label="药品名称" min-width="150" />
-        <el-table-column prop="alertContent" label="预警内容" min-width="200" />
-        <el-table-column prop="createdTime" label="时间" width="180" />
+        <el-table-column prop="alertTitle" label="预警标题" min-width="180" />
+        <el-table-column prop="alertContent" label="预警内容" min-width="220" />
+        <el-table-column prop="alertTime" label="时间" width="180" />
       </el-table>
       <el-empty v-if="alertList.length === 0" description="暂无预警" :image-size="100" />
     </el-card>
@@ -125,6 +121,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useUserStore } from '@/stores/user'
+import { materialApi } from '@/api/material'
+import { dashboardApi } from '@/api/dashboard'
+import { notificationApi } from '@/api/notification'
+import { alertApi } from '@/api/alert'
+
+const userStore = useUserStore()
 
 const statistics = ref({
   totalMaterials: 0,
@@ -134,7 +137,7 @@ const statistics = ref({
 })
 
 const quickLinks = [
-  { path: '/materials', text: '药品管理', icon: 'Goods', color: '#409eff' },
+  { path: '/materials', text: '药品列表', icon: 'Goods', color: '#409eff' },
   { path: '/inventory/stock', text: '库存查询', icon: 'Box', color: '#67c23a' },
   { path: '/inventory/stock-in', text: '入库管理', icon: 'Upload', color: '#e6a23c' },
   { path: '/inventory/stock-out', text: '出库管理', icon: 'Download', color: '#f56c6c' },
@@ -142,45 +145,70 @@ const quickLinks = [
   { path: '/approval/todo', text: '待审批', icon: 'CircleCheck', color: '#409eff' }
 ]
 
-const todoList = ref([
-  { title: '审批申请单 APP202603170001', time: '2026-03-17 14:30' },
-  { title: '审批申请单 APP202603170002', time: '2026-03-17 13:20' },
-  { title: '处理低库存预警', time: '2026-03-17 10:00' }
-])
+const todoList = ref<Array<{ title: string; time: string }>>([])
+const messageList = ref<Array<{ title: string; time: string; isRead: number }>>([])
+const alertList = ref<Array<{ alertType: number; alertTitle: string; alertContent: string; alertTime: string }>>([])
 
-const messageList = ref([
-  { title: '您的申请已通过审批', time: '2026-03-17 14:30', isRead: false },
-  { title: '低库存预警通知', time: '2026-03-17 10:00', isRead: false },
-  { title: '系统维护通知', time: '2026-03-16 15:00', isRead: true }
-])
+const formatDateTime = (dateTime?: string) => {
+  if (!dateTime) return '-'
+  return dateTime.replace('T', ' ').slice(0, 16)
+}
 
-const alertList = ref([
-  {
-    alertType: 'LOW_STOCK',
-    materialName: '无水乙醇',
-    alertContent: '库存数量低于安全库存',
-    createdTime: '2026-03-17 10:00:00'
-  },
-  {
-    alertType: 'EXPIRY_WARNING',
-    materialName: '盐酸',
-    alertContent: '距离有效期不足30天',
-    createdTime: '2026-03-17 09:00:00'
+const loadDashboardData = async () => {
+  const userId = userStore.userInfo?.id
+  if (!userId) {
+    statistics.value = {
+      totalMaterials: 0,
+      totalStockValue: 0,
+      pendingApprovals: 0,
+      alertCount: 0
+    }
+    todoList.value = []
+    messageList.value = []
+    alertList.value = []
+    return
   }
-])
 
-const loadStatistics = async () => {
-  // TODO: 调用实际API加载统计数据
-  statistics.value = {
-    totalMaterials: 156,
-    totalStockValue: 285600.50,
-    pendingApprovals: 3,
-    alertCount: 2
+  try {
+    const [materialResult, stockSummary, todoResult, notificationResult, alertResult] = await Promise.all([
+      materialApi.getMaterialList({ page: 1, size: 1 }),
+      dashboardApi.getStockSummary(),
+      dashboardApi.getTodoList(userId),
+      notificationApi.queryNotifications({ receiverId: userId, page: 1, size: 5 }),
+      alertApi.getAlertList({ page: 1, size: 5, status: 1 })
+    ])
+
+    statistics.value = {
+      totalMaterials: materialResult.total ?? 0,
+      totalStockValue: Number(stockSummary.totalValue ?? 0),
+      pendingApprovals: todoResult.approvalCount ?? 0,
+      alertCount: todoResult.alertCount ?? alertResult.total ?? 0
+    }
+
+    todoList.value = (todoResult.list ?? []).slice(0, 5).map(item => ({
+      title: item.title,
+      time: formatDateTime(item.deadline || item.createdTime)
+    }))
+
+    messageList.value = (notificationResult.list ?? []).slice(0, 5).map(item => ({
+      title: item.title,
+      time: formatDateTime(item.createdTime),
+      isRead: item.isRead
+    }))
+
+    alertList.value = (alertResult.list ?? []).slice(0, 5).map(item => ({
+      alertType: item.alertType,
+      alertTitle: item.alertTitle,
+      alertContent: item.alertContent,
+      alertTime: formatDateTime(item.alertTime)
+    }))
+  } catch (error) {
+    console.error('加载仪表盘数据失败:', error)
   }
 }
 
 onMounted(() => {
-  loadStatistics()
+  loadDashboardData()
 })
 </script>
 

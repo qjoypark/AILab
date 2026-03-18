@@ -3,6 +3,7 @@ package com.lab.inventory.client.impl;
 import com.lab.inventory.client.ApprovalClient;
 import com.lab.inventory.dto.HazardousUsageRecordDTO;
 import com.lab.inventory.dto.MaterialApplicationDTO;
+import com.lab.inventory.dto.MaterialApplicationItemDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,7 +32,7 @@ public class ApprovalClientImpl implements ApprovalClient {
     
     private final RestTemplate restTemplate;
     
-    @Value("${approval.service.url:http://localhost:8083}")
+    @Value("${approval.service.url:http://localhost:8084}")
     private String approvalServiceUrl;
     
     public ApprovalClientImpl() {
@@ -49,17 +51,18 @@ public class ApprovalClientImpl implements ApprovalClient {
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
                 if (data != null) {
-                    // 简化处理，直接转换为DTO
                     MaterialApplicationDTO dto = new MaterialApplicationDTO();
-                    dto.setId(Long.valueOf(data.get("id").toString()));
+                    dto.setId(parseLong(data.get("id")));
                     dto.setApplicationNo((String) data.get("applicationNo"));
-                    dto.setApplicantId(Long.valueOf(data.get("applicantId").toString()));
+                    dto.setApplicantId(parseLong(data.get("applicantId")));
                     dto.setApplicantName((String) data.get("applicantName"));
                     dto.setApplicantDept((String) data.get("applicantDept"));
-                    dto.setApplicationType((Integer) data.get("applicationType"));
+                    dto.setApplicationType(parseInteger(data.get("applicationType")));
                     dto.setUsagePurpose((String) data.get("usagePurpose"));
                     dto.setUsageLocation((String) data.get("usageLocation"));
-                    dto.setStatus((Integer) data.get("status"));
+                    dto.setStatus(parseInteger(data.get("status")));
+                    dto.setApprovalStatus(parseInteger(data.get("approvalStatus")));
+                    dto.setItems(parseApplicationItems(data.get("items")));
                     
                     log.info("获取申请单详情成功: applicationId={}", applicationId);
                     return dto;
@@ -201,6 +204,66 @@ public class ApprovalClientImpl implements ApprovalClient {
         } catch (Exception e) {
             log.error("调用审批服务查询待审批申请列表失败: approverId={}", approverId, e);
             return new ArrayList<>();
+        }
+    }
+
+    private List<MaterialApplicationItemDTO> parseApplicationItems(Object itemsObject) {
+        if (!(itemsObject instanceof List<?> itemList)) {
+            return Collections.emptyList();
+        }
+
+        List<MaterialApplicationItemDTO> result = new ArrayList<>();
+        for (Object itemObject : itemList) {
+            if (!(itemObject instanceof Map<?, ?> itemMap)) {
+                continue;
+            }
+
+            MaterialApplicationItemDTO itemDTO = new MaterialApplicationItemDTO();
+            itemDTO.setId(parseLong(itemMap.get("id")));
+            itemDTO.setMaterialId(parseLong(itemMap.get("materialId")));
+            itemDTO.setMaterialName((String) itemMap.get("materialName"));
+            itemDTO.setSpecification((String) itemMap.get("specification"));
+            itemDTO.setUnit((String) itemMap.get("unit"));
+            itemDTO.setApplyQuantity(parseBigDecimal(itemMap.get("applyQuantity")));
+            itemDTO.setApprovedQuantity(parseBigDecimal(itemMap.get("approvedQuantity")));
+            itemDTO.setActualQuantity(parseBigDecimal(itemMap.get("actualQuantity")));
+            itemDTO.setRemark((String) itemMap.get("remark"));
+            result.add(itemDTO);
+        }
+
+        return result;
+    }
+
+    private Long parseLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.valueOf(value.toString());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private Integer parseInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(value.toString());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private BigDecimal parseBigDecimal(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return new BigDecimal(value.toString());
+        } catch (NumberFormatException ex) {
+            return null;
         }
     }
 }

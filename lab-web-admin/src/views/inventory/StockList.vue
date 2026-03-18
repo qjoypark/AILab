@@ -5,9 +5,9 @@
         <div class="card-header">
           <span>库存查询</span>
           <div>
-            <el-button type="primary" @click="$router.push('/inventory/stock-in')">入库</el-button>
-            <el-button type="success" @click="$router.push('/inventory/stock-out')">出库</el-button>
-            <el-button type="warning" @click="$router.push('/inventory/stock-check')">盘点</el-button>
+            <el-button v-if="canAccessStockIn" type="primary" @click="goToStockIn">入库</el-button>
+            <el-button v-if="canAccessStockOut" type="success" @click="goToStockOut">出库</el-button>
+            <el-button v-if="canAccessStockCheck" type="warning" @click="goToStockCheck">盘点</el-button>
           </div>
         </div>
       </template>
@@ -98,16 +98,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import { inventoryApi } from '@/api/inventory'
 import type { StockInventory, StockQuery, Warehouse } from '@/types/inventory'
+import { materialApi } from '@/api/material'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
+import {
+  INVENTORY_STOCK_CHECK_PERMISSIONS,
+  INVENTORY_STOCK_IN_PERMISSIONS,
+  INVENTORY_STOCK_OUT_PERMISSIONS
+} from '@/constants/permissions'
 
+const router = useRouter()
+const userStore = useUserStore()
 const loading = ref(false)
 const detailDialogVisible = ref(false)
 const stockList = ref<StockInventory[]>([])
 const stockDetailList = ref<StockInventory[]>([])
 const warehouseList = ref<Warehouse[]>([])
+const warehouseNameMap = ref<Record<number, string>>({})
+const materialInfoMap = ref<Record<number, { materialCode?: string; materialName?: string; safetyStock?: number }>>({})
+const locationNameMap = ref<Record<string, string>>({})
 const total = ref(0)
+const DEFAULT_LOW_STOCK_THRESHOLD = 10
+const canAccessStockIn = computed(() => userStore.hasAnyPermission([...INVENTORY_STOCK_IN_PERMISSIONS]))
+const canAccessStockOut = computed(() => userStore.hasAnyPermission([...INVENTORY_STOCK_OUT_PERMISSIONS]))
+const canAccessStockCheck = computed(() => userStore.hasAnyPermission([...INVENTORY_STOCK_CHECK_PERMISSIONS]))
+const canReadMaterial = computed(() => userStore.hasPermission('material:list'))
 
 const queryForm = reactive<StockQuery>({
   keyword: '',
@@ -117,11 +136,106 @@ const queryForm = reactive<StockQuery>({
   size: 10
 })
 
+const formatIdLabel = (prefix: string, id?: number) => {
+  if (!id) return '-'
+  return `${prefix}#${id}`
+}
+
+const rebuildWarehouseNameMap = () => {
+  const map: Record<number, string> = {}
+  warehouseList.value.forEach((warehouse) => {
+    map[warehouse.id] = warehouse.warehouseName
+  })
+  warehouseNameMap.value = map
+}
+
+const getLocationCacheKey = (warehouseId?: number, locationId?: number) => {
+  return `${warehouseId ?? 0}_${locationId ?? 0}`
+}
+
+const resolveMaterialInfo = async (materialId?: number) => {
+  if (!materialId) return {}
+  if (materialInfoMap.value[materialId]) {
+    return materialInfoMap.value[materialId]
+  }
+  if (!canReadMaterial.value) {
+    materialInfoMap.value[materialId] = {}
+    return {}
+  }
+
+  try {
+    const material = await materialApi.getMaterialById(materialId)
+    const info = {
+      materialCode: material.materialCode,
+      materialName: material.materialName,
+      safetyStock: material.safetyStock
+    }
+    materialInfoMap.value[materialId] = info
+    return info
+  } catch {
+    materialInfoMap.value[materialId] = {}
+    return {}
+  }
+}
+
+const resolveLocationName = async (warehouseId?: number, locationId?: number) => {
+  if (!warehouseId || !locationId) return ''
+  const cacheKey = getLocationCacheKey(warehouseId, locationId)
+  if (locationNameMap.value[cacheKey]) {
+    return locationNameMap.value[cacheKey]
+  }
+
+  try {
+    const locations = await inventoryApi.getLocationList(warehouseId)
+    locations.forEach((location) => {
+      const key = getLocationCacheKey(warehouseId, location.id)
+      locationNameMap.value[key] = location.locationName
+    })
+    return locationNameMap.value[cacheKey] || ''
+  } catch {
+    locationNameMap.value[cacheKey] = ''
+    return ''
+  }
+}
+
+const enrichStockRow = async (row: StockInventory) => {
+  const enriched: StockInventory = { ...row }
+
+  const materialInfo = await resolveMaterialInfo(enriched.materialId)
+  enriched.materialCode = enriched.materialCode || materialInfo.materialCode
+  enriched.materialName = enriched.materialName || materialInfo.materialName
+
+  if (!enriched.materialCode) {
+    enriched.materialCode = formatIdLabel('药品', enriched.materialId)
+  }
+  if (!enriched.materialName) {
+    enriched.materialName = formatIdLabel('药品', enriched.materialId)
+  }
+
+  enriched.warehouseName =
+    enriched.warehouseName ||
+    warehouseNameMap.value[enriched.warehouseId] ||
+    formatIdLabel('仓库', enriched.warehouseId)
+
+  const locationId = enriched.locationId
+  if (!enriched.locationName && locationId) {
+    enriched.locationName = await resolveLocationName(enriched.warehouseId, locationId)
+  }
+  if (!enriched.locationName && locationId) {
+    enriched.locationName = formatIdLabel('库位', locationId)
+  }
+  if (!enriched.locationName) {
+    enriched.locationName = '-'
+  }
+
+  return enriched
+}
+
 const loadStockList = async () => {
   loading.value = true
   try {
     const res = await inventoryApi.getStockList(queryForm)
-    stockList.value = res.list
+    stockList.value = await Promise.all(res.list.map(enrichStockRow))
     total.value = res.total
   } catch (error) {
     console.error('加载库存列表失败:', error)
@@ -133,13 +247,16 @@ const loadStockList = async () => {
 const loadWarehouseList = async () => {
   try {
     warehouseList.value = await inventoryApi.getWarehouseList()
+    rebuildWarehouseNameMap()
   } catch (error) {
     console.error('加载仓库列表失败:', error)
   }
 }
 
-const handleQuery = () => {
-  queryForm.page = 1
+const handleQuery = (trigger?: number | Event) => {
+  if (typeof trigger !== 'number') {
+    queryForm.page = 1
+  }
   loadStockList()
 }
 
@@ -152,16 +269,43 @@ const handleReset = () => {
 
 const handleViewDetail = async (row: StockInventory) => {
   try {
-    stockDetailList.value = await inventoryApi.getStockDetail(row.materialId)
+    const detailList = await inventoryApi.getStockDetail(row.materialId)
+    stockDetailList.value = await Promise.all(detailList.map(enrichStockRow))
     detailDialogVisible.value = true
   } catch (error) {
     console.error('加载库存明细失败:', error)
   }
 }
 
+const goToStockIn = () => {
+  if (!canAccessStockIn.value) {
+    ElMessage.warning('暂无入库模块访问权限')
+    return
+  }
+  router.push('/inventory/stock-in')
+}
+
+const goToStockOut = () => {
+  if (!canAccessStockOut.value) {
+    ElMessage.warning('暂无出库模块访问权限')
+    return
+  }
+  router.push('/inventory/stock-out')
+}
+
+const goToStockCheck = () => {
+  if (!canAccessStockCheck.value) {
+    ElMessage.warning('暂无盘点模块访问权限')
+    return
+  }
+  router.push('/inventory/stock-check')
+}
+
 const isLowStock = (row: StockInventory) => {
-  // 简单判断：可用数量小于10
-  return row.availableQuantity < 10
+  const materialSafetyStock = row.materialId ? materialInfoMap.value[row.materialId]?.safetyStock : undefined
+  const threshold = materialSafetyStock && materialSafetyStock > 0 ? materialSafetyStock : DEFAULT_LOW_STOCK_THRESHOLD
+  const availableQuantity = row.availableQuantity ?? 0
+  return availableQuantity <= threshold
 }
 
 const isExpiringSoon = (row: StockInventory) => {
@@ -172,9 +316,9 @@ const isExpiringSoon = (row: StockInventory) => {
   return daysUntilExpiry <= 30 && daysUntilExpiry >= 0
 }
 
-onMounted(() => {
-  loadStockList()
-  loadWarehouseList()
+onMounted(async () => {
+  await loadWarehouseList()
+  await loadStockList()
 })
 </script>
 
