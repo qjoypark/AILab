@@ -84,6 +84,7 @@ export interface StockOut {
   operatorId?: number
   operatorName?: string
   applicationId?: number
+  applicationNo?: string
   totalAmount?: number
   status: number // 0-待确认 1-已确认
   remark?: string

@@ -6,6 +6,7 @@ import com.lab.approval.dto.MaterialApplicationDTO;
 import com.lab.approval.entity.MaterialApplication;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 领用申请服务接口
@@ -35,7 +36,15 @@ public interface MaterialApplicationService {
      * @return 申请列表
      */
     Page<MaterialApplication> listApplications(int page, int size, Integer status, Integer applicationType, 
-                                                LocalDate startDate, LocalDate endDate);
+                                                String keyword, Integer uiStatus, LocalDate startDate, LocalDate endDate);
+
+    /**
+     * 查询当前审批人的待审批申请列表
+     *
+     * @param approverId 审批人ID
+     * @return 待审批申请
+     */
+    List<MaterialApplicationDTO> listPendingApplications(Long approverId);
     
     /**
      * 查询申请详情

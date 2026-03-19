@@ -5,6 +5,7 @@ import com.lab.inventory.dto.StockOutOrderSummaryDTO;
 import com.lab.inventory.dto.StockOutDTO;
 import com.lab.inventory.entity.StockOut;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -15,7 +16,15 @@ public interface StockOutService {
     /**
      * 分页查询出库单列表
      */
-    Page<StockOut> listStockOut(int page, int size, Long warehouseId, Integer status);
+    Page<StockOut> listStockOut(
+            int page,
+            int size,
+            String keyword,
+            Long warehouseId,
+            Integer status,
+            LocalDateTime createdTimeStart,
+            LocalDateTime createdTimeEnd
+    );
     
     /**
      * 根据ID查询出库单详情

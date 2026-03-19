@@ -13,7 +13,13 @@
 
       <el-form :model="queryForm" inline>
         <el-form-item label="仓库类型">
-          <el-select v-model="queryForm.warehouseType" placeholder="请选择" clearable style="width: 180px">
+          <el-select
+            v-model="queryForm.warehouseType"
+            v-adaptive-select-width="['全部', '普通仓库', '危化品仓库']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="普通仓库" :value="1" />
             <el-option label="危化品仓库" :value="2" />
           </el-select>
@@ -139,7 +145,7 @@ const warehouseList = ref<Warehouse[]>([])
 const total = ref(0)
 
 const queryForm = reactive<WarehouseQuery>({
-  warehouseType: undefined,
+  warehouseType: -1,
   page: 1,
   size: 10
 })
@@ -190,7 +196,7 @@ const handleSearch = () => {
 }
 
 const handleReset = () => {
-  queryForm.warehouseType = undefined
+  queryForm.warehouseType = -1
   handleSearch()
 }
 

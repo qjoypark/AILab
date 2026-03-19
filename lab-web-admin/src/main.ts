@@ -8,6 +8,7 @@ import router from './router'
 import App from './App.vue'
 import './style.css'
 import { permission, role } from './directives/permission'
+import { adaptiveSelectWidth } from './directives/adaptiveSelectWidth'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -20,6 +21,7 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 // 注册自定义指令
 app.directive('permission', permission)
 app.directive('role', role)
+app.directive('adaptive-select-width', adaptiveSelectWidth)
 
 app.use(pinia)
 app.use(router)

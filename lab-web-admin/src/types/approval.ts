@@ -8,7 +8,14 @@ export interface MaterialApplication {
   usageLocation?: string
   expectedDate?: string
   status: number // 0-草稿 1-审批中 2-审批通过 3-审批拒绝 4-已出库 5-已取消
+  approvalStatus?: number
   currentApprovalLevel?: number
+  currentApproverId?: number
+  currentApproverName?: string
+  currentApproverRole?: string
+  currentApproverIds?: number[]
+  currentApproverNames?: string[]
+  currentPendingStatus?: string
   createdTime?: string
   items?: MaterialApplicationItem[]
   approvalRecords?: ApprovalRecord[]

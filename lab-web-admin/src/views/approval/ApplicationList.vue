@@ -13,16 +13,39 @@
 
       <el-form :model="queryForm" inline>
         <el-form-item label="关键词">
-          <el-input v-model="queryForm.keyword" placeholder="申请单号" clearable />
+          <el-input
+            v-model="queryForm.keyword"
+            class="query-keyword-input"
+            placeholder="申请单号"
+            clearable
+          />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable>
+          <el-select
+            v-model="queryForm.status"
+            v-adaptive-select-width="['全部', '审批中', '审批通过', '审批拒绝', '已出库', '已取消']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="审批中" :value="1" />
             <el-option label="审批通过" :value="2" />
             <el-option label="审批拒绝" :value="3" />
             <el-option label="已出库" :value="4" />
             <el-option label="已取消" :value="5" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="申请日期">
+          <el-date-picker
+            v-model="queryForm.createdDateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            style="width: 260px"
+            clearable
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">查询</el-button>
@@ -32,10 +55,10 @@
 
       <el-table :data="applicationList" border stripe v-loading="loading">
         <el-table-column prop="applicationCode" label="申请单号" width="180" />
-        <el-table-column prop="applicantName" label="申请人" width="100" />
-        <el-table-column prop="department" label="部门" width="120" />
-        <el-table-column prop="applicationPurpose" label="用途" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="applicantName" label="申请人" width="120" />
+        <el-table-column prop="department" label="部门" width="140" />
+        <el-table-column prop="applicationPurpose" label="用途" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="status" label="状态" width="110">
           <template #default="{ row }">
             <el-tag v-if="row.status === 1" type="warning">审批中</el-tag>
             <el-tag v-else-if="row.status === 2" type="success">审批通过</el-tag>
@@ -45,7 +68,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdTime" label="申请时间" width="180" />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">查看</el-button>
             <el-button
@@ -89,8 +112,14 @@
         <el-form-item label="使用地点" prop="usageLocation">
           <el-input v-model="applicationForm.usageLocation" />
         </el-form-item>
-        <el-form-item label="期望日期" prop="expectedDate">
-          <el-date-picker v-model="applicationForm.expectedDate" type="date" style="width: 100%" />
+        <el-form-item label="期望使用日期" prop="expectedDate">
+          <el-date-picker
+            v-model="applicationForm.expectedDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            format="YYYY-MM-DD"
+            style="width: 100%"
+          />
         </el-form-item>
 
         <el-divider>申请明细</el-divider>
@@ -161,6 +190,9 @@
           <el-tag v-else-if="currentApplication?.status === 4" type="info">已出库</el-tag>
           <el-tag v-else type="info">已取消</el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="审批角色">
+          {{ currentApplication?.currentApproverRole || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="出库流程" :span="2">
           <el-tag v-if="currentApplication?.stockOutFlowStatus === 2" type="success">已全部出库</el-tag>
           <el-tag v-else-if="currentApplication?.stockOutFlowStatus === 1" type="warning">出库流程中</el-tag>
@@ -168,7 +200,7 @@
         </el-descriptions-item>
         <el-descriptions-item label="申请用途" :span="2">{{ currentApplication?.applicationPurpose }}</el-descriptions-item>
         <el-descriptions-item label="使用地点">{{ currentApplication?.usageLocation }}</el-descriptions-item>
-        <el-descriptions-item label="期望日期">{{ currentApplication?.expectedDate }}</el-descriptions-item>
+        <el-descriptions-item label="期望使用日期">{{ currentApplication?.expectedDate }}</el-descriptions-item>
         <el-descriptions-item label="申请时间" :span="2">{{ currentApplication?.createdTime }}</el-descriptions-item>
         <el-descriptions-item label="出库单号" :span="2">
           <el-space wrap v-if="currentApplication?.stockOutOrders?.length">
@@ -206,7 +238,8 @@
         >
           <el-card>
             <p><strong>审批人：</strong>{{ record.approverName }}</p>
-            <p><strong>审批结果：</strong>
+            <p>
+              <strong>审批结果：</strong>
               <el-tag v-if="record.approvalResult === 1" type="success">通过</el-tag>
               <el-tag v-else type="danger">拒绝</el-tag>
             </p>
@@ -241,9 +274,18 @@ const materialSelectorVisible = ref(false)
 const currentMaterialIndex = ref<number>(-1)
 const total = ref(0)
 
-const queryForm = reactive<ApplicationQuery>({
+const getTodayDate = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const queryForm = reactive<ApplicationQuery & { createdDateRange: string[] }>({
   keyword: '',
-  status: undefined,
+  status: -1,
+  createdDateRange: [],
   page: 1,
   size: 10
 })
@@ -251,7 +293,7 @@ const queryForm = reactive<ApplicationQuery>({
 const applicationForm = reactive<ApplicationForm>({
   applicationPurpose: '',
   usageLocation: '',
-  expectedDate: '',
+  expectedDate: getTodayDate(),
   items: []
 })
 
@@ -262,7 +304,15 @@ const rules: FormRules = {
 const loadApplicationList = async () => {
   loading.value = true
   try {
-    const res = await approvalApi.getApplicationList(queryForm)
+    const [startDate, endDate] = queryForm.createdDateRange
+    const res = await approvalApi.getApplicationList({
+      keyword: queryForm.keyword,
+      status: queryForm.status,
+      page: queryForm.page,
+      size: queryForm.size,
+      startDate,
+      endDate
+    })
     applicationList.value = res.list
     total.value = res.total
   } catch (error) {
@@ -281,7 +331,8 @@ const handleQuery = (trigger?: number | Event) => {
 
 const handleReset = () => {
   queryForm.keyword = ''
-  queryForm.status = undefined
+  queryForm.status = -1
+  queryForm.createdDateRange = []
   handleQuery()
 }
 
@@ -289,7 +340,7 @@ const handleAdd = () => {
   Object.assign(applicationForm, {
     applicationPurpose: '',
     usageLocation: '',
-    expectedDate: '',
+    expectedDate: getTodayDate(),
     items: []
   })
   dialogVisible.value = true
@@ -356,7 +407,7 @@ const handleSubmit = async () => {
         return
       }
       if (item.requestedQuantity <= 0) {
-        ElMessage.warning(`药品 ${item.materialName || item.materialId} 的申请数量必须大于0`)
+        ElMessage.warning(`药品 ${item.materialName || item.materialId} 的申请数量必须大于 0`)
         return
       }
       if (item.availableStock !== undefined && item.availableStock >= 0 && item.requestedQuantity > item.availableStock) {
@@ -429,4 +480,3 @@ onMounted(() => {
   justify-content: flex-end;
 }
 </style>
-

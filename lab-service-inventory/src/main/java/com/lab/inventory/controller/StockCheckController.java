@@ -27,9 +27,10 @@ public class StockCheckController {
     public Result<Page<StockCheck>> listStockCheck(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Integer status) {
-        Page<StockCheck> result = stockCheckService.listStockCheck(page, size, warehouseId, status);
+        Page<StockCheck> result = stockCheckService.listStockCheck(page, size, keyword, warehouseId, status);
         return Result.success(result);
     }
     

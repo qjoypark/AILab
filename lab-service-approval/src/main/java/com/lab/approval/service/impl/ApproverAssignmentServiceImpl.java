@@ -1,83 +1,72 @@
 package com.lab.approval.service.impl;
 
 import com.lab.approval.dto.ApprovalContext;
+import com.lab.approval.dto.ApproverCandidateDTO;
+import com.lab.approval.mapper.ApproverUserMapper;
 import com.lab.approval.service.ApproverAssignmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * 审批人自动分配服务实现
- * 
- * 根据申请人部门、药品类型等信息自动分配审批人
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ApproverAssignmentServiceImpl implements ApproverAssignmentService {
-    
+
+    private static final String ROLE_CENTER_ADMIN = "CENTER_ADMIN";
+    private static final String ROLE_CENTER_ADMIN_ALIAS = "003";
+
+    private final ApproverUserMapper approverUserMapper;
+
     @Override
     public Long assignApprover(String approverRole, ApprovalContext context) {
-        log.info("自动分配审批人: approverRole={}, context={}", approverRole, context);
-        
-        // 根据角色类型分配审批人
-        switch (approverRole) {
-            case "LAB_MANAGER":
-                return assignLabManager(context);
-            case "CENTER_ADMIN":
-                return assignCenterAdmin(context);
-            case "ADMIN":
-            case "SAFETY_ADMIN":
-                return assignSafetyAdmin(context);
-            default:
-                log.warn("未知的审批人角色: {}", approverRole);
-                return null;
+        List<ApproverCandidateDTO> candidates = listApproverCandidates(approverRole, context);
+        if (candidates.isEmpty()) {
+            log.warn("未找到候选审批人: approverRole={}", approverRole);
+            return null;
         }
+        return candidates.get(0).getUserId();
     }
-    
-    /**
-     * 分配实验室负责人
-     * 根据申请人部门分配对应实验室的负责人
-     */
-    private Long assignLabManager(ApprovalContext context) {
-        // TODO: 实现根据部门查询实验室负责人的逻辑
-        // 这里需要调用用户服务或查询用户表
-        // 简化实现：返回固定的实验室负责人ID
-        log.info("分配实验室负责人: dept={}", context.getApplicantDept());
-        
-        // 根据部门分配不同的实验室负责人
-        if (context.getApplicantDept() != null) {
-            // 实际应该查询sys_user表，找到该部门的LAB_MANAGER角色用户
-            // 这里简化处理，返回一个默认值
-            return 2L; // 假设ID为2的用户是实验室负责人
+
+    @Override
+    public List<ApproverCandidateDTO> listApproverCandidates(String approverRole, ApprovalContext context) {
+        String effectiveRoleCode = resolveEffectiveRoleCode(approverRole, context);
+        if (effectiveRoleCode == null || effectiveRoleCode.isBlank()) {
+            return Collections.emptyList();
         }
-        
-        return 2L;
+        List<String> roleCodes = buildRoleCodeCandidates(effectiveRoleCode);
+        List<ApproverCandidateDTO> candidates = approverUserMapper.selectApproversByRoleCodes(roleCodes);
+        return candidates == null ? Collections.emptyList() : candidates;
     }
-    
-    /**
-     * 分配中心管理员
-     */
-    private Long assignCenterAdmin(ApprovalContext context) {
-        // TODO: 实现查询中心管理员的逻辑
-        // 可以根据药品类型分配不同的中心管理员
-        log.info("分配中心管理员: materialType={}", context.getMaterialType());
-        
-        // 实际应该查询sys_user表，找到CENTER_ADMIN角色的用户
-        // 如果有多个中心管理员，可以根据负载均衡策略分配
-        return 3L; // 假设ID为3的用户是中心管理员
+
+    @Override
+    public String resolveEffectiveRoleCode(String approverRole, ApprovalContext context) {
+        if (context != null && context.getApplicationType() != null
+                && (context.getApplicationType() == 1 || context.getApplicationType() == 2)) {
+            return ROLE_CENTER_ADMIN;
+        }
+        if (approverRole == null || approverRole.isBlank()) {
+            return null;
+        }
+        return approverRole.trim().toUpperCase();
     }
-    
-    /**
-     * 分配安全管理员
-     * 危化品审批的最后一级
-     */
-    private Long assignSafetyAdmin(ApprovalContext context) {
-        // TODO: 实现查询安全管理员的逻辑
-        log.info("分配安全管理员: hasControlledMaterial={}", context.getHasControlledMaterial());
-        
-        // 实际应该查询sys_user表，找到ADMIN或SAFETY_ADMIN角色的用户
-        // 对于管控物品，可能需要特定的安全管理员审批
-        return 1L; // 假设ID为1的用户是安全管理员
+
+    private List<String> buildRoleCodeCandidates(String effectiveRoleCode) {
+        if (effectiveRoleCode == null || effectiveRoleCode.isBlank()) {
+            return Collections.emptyList();
+        }
+        List<String> roleCodes = new ArrayList<>();
+        roleCodes.add(effectiveRoleCode);
+        if (ROLE_CENTER_ADMIN.equals(effectiveRoleCode)) {
+            roleCodes.add(ROLE_CENTER_ADMIN_ALIAS);
+        }
+        return roleCodes;
     }
 }

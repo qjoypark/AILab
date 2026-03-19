@@ -11,6 +11,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -140,14 +141,16 @@ public class MaterialClientImpl implements MaterialClient {
 
         try {
             do {
-                String url = UriComponentsBuilder
+                URI uri = UriComponentsBuilder
                         .fromHttpUrl(materialServiceUrl + "/api/v1/materials")
                         .queryParam("page", page)
                         .queryParam("size", size)
                         .queryParam("keyword", normalizedKeyword)
-                        .toUriString();
+                        .build()
+                        .encode()
+                        .toUri();
 
-                ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+                ResponseEntity<Map> response = restTemplate.getForEntity(uri, Map.class);
                 if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                     break;
                 }

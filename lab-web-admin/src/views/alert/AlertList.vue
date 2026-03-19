@@ -7,21 +7,39 @@
 
       <el-form :model="queryForm" inline>
         <el-form-item label="预警类型">
-          <el-select v-model="queryForm.alertType" placeholder="请选择" clearable>
+          <el-select
+            v-model="queryForm.alertType"
+            v-adaptive-select-width="['全部', '低库存预警', '有效期预警', '危化品账实差异']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="低库存预警" :value="1" />
             <el-option label="有效期预警" :value="2" />
             <el-option label="危化品账实差异" :value="4" />
           </el-select>
         </el-form-item>
         <el-form-item label="预警级别">
-          <el-select v-model="queryForm.alertLevel" placeholder="请选择" clearable>
+          <el-select
+            v-model="queryForm.alertLevel"
+            v-adaptive-select-width="['全部', '提示', '警告', '严重']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="提示" :value="1" />
             <el-option label="警告" :value="2" />
             <el-option label="严重" :value="3" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable>
+          <el-select
+            v-model="queryForm.status"
+            v-adaptive-select-width="['全部', '待处理', '已处理', '已忽略']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="待处理" :value="1" />
             <el-option label="已处理" :value="2" />
             <el-option label="已忽略" :value="3" />
@@ -170,9 +188,9 @@ const total = ref(0)
 const userStore = useUserStore()
 
 const queryForm = reactive({
-  alertType: undefined as number | undefined,
-  alertLevel: undefined as number | undefined,
-  status: undefined as number | undefined,
+  alertType: -1 as number,
+  alertLevel: -1 as number,
+  status: -1 as number,
   page: 1,
   size: 10
 })
@@ -215,9 +233,9 @@ const handleQuery = () => {
 }
 
 const handleReset = () => {
-  queryForm.alertType = undefined
-  queryForm.alertLevel = undefined
-  queryForm.status = undefined
+  queryForm.alertType = -1
+  queryForm.alertLevel = -1
+  queryForm.status = -1
   handleQuery()
 }
 

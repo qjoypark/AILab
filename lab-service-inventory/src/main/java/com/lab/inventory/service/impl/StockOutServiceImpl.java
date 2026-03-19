@@ -57,19 +57,38 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
     private static final Long DEFAULT_SYSTEM_OPERATOR_ID = 1L;
     
     @Override
-    public Page<StockOut> listStockOut(int page, int size, Long warehouseId, Integer status) {
+    public Page<StockOut> listStockOut(
+            int page,
+            int size,
+            String keyword,
+            Long warehouseId,
+            Integer status,
+            LocalDateTime createdTimeStart,
+            LocalDateTime createdTimeEnd
+    ) {
         Page<StockOut> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<StockOut> wrapper = new LambdaQueryWrapper<>();
         
+        if (StringUtils.hasText(keyword)) {
+            wrapper.like(StockOut::getOutOrderNo, keyword.trim());
+        }
         if (warehouseId != null) {
             wrapper.eq(StockOut::getWarehouseId, warehouseId);
         }
         if (status != null) {
             wrapper.eq(StockOut::getStatus, status);
         }
+        if (createdTimeStart != null) {
+            wrapper.ge(StockOut::getCreatedTime, createdTimeStart);
+        }
+        if (createdTimeEnd != null) {
+            wrapper.le(StockOut::getCreatedTime, createdTimeEnd);
+        }
         
         wrapper.orderByDesc(StockOut::getCreatedTime);
-        return stockOutMapper.selectPage(pageParam, wrapper);
+        Page<StockOut> resultPage = stockOutMapper.selectPage(pageParam, wrapper);
+        fillApplicationNo(resultPage.getRecords());
+        return resultPage;
     }
     
     @Override
@@ -84,6 +103,7 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
         detailWrapper.orderByAsc(StockOutDetail::getId);
         List<StockOutDetail> details = stockOutDetailMapper.selectList(detailWrapper);
         stockOut.setItems(details);
+        fillApplicationNo(List.of(stockOut));
 
         return stockOut;
     }
@@ -182,12 +202,12 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
             throw new BusinessException("申请单不存在");
         }
         
-        // 2. 验证申请单状态（必须是审批通过状态）
-        if (application.getStatus() != null && application.getStatus() != 4 && application.getStatus() != 7) {
-            application.setStatus(3);
-        }
-        if (application.getStatus() != 3) {
+        // 2. 验证申请单状态（必须是审批通过状态），禁止绕过审批直接生成出库单
+        if (application.getStatus() == null || application.getStatus() != 3) {
             throw new BusinessException("申请单状态不是审批通过，无法创建出库单");
+        }
+        if (application.getApprovalStatus() != null && application.getApprovalStatus() != 2) {
+            throw new BusinessException("申请单审批状态不是已通过，无法创建出库单");
         }
         
         // 3. 检查是否已经创建过出库单
@@ -435,6 +455,36 @@ public class StockOutServiceImpl implements com.lab.inventory.service.StockOutSe
             return false;
         }
         return stockOutList.stream().allMatch(stockOut -> stockOut.getStatus() != null && stockOut.getStatus() == 2);
+    }
+
+    private void fillApplicationNo(List<StockOut> stockOutList) {
+        if (stockOutList == null || stockOutList.isEmpty()) {
+            return;
+        }
+
+        List<Long> applicationIds = stockOutList.stream()
+                .map(StockOut::getApplicationId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (applicationIds.isEmpty()) {
+            return;
+        }
+
+        Map<Long, String> applicationNoMap = new HashMap<>();
+        for (Long applicationId : applicationIds) {
+            MaterialApplicationDTO application = approvalClient.getApplicationDetail(applicationId);
+            if (application != null && StringUtils.hasText(application.getApplicationNo())) {
+                applicationNoMap.put(applicationId, application.getApplicationNo());
+            }
+        }
+
+        for (StockOut stockOut : stockOutList) {
+            Long applicationId = stockOut.getApplicationId();
+            if (applicationId != null) {
+                stockOut.setApplicationNo(applicationNoMap.get(applicationId));
+            }
+        }
     }
 
     private String resolveStockOutStatusName(Integer status) {

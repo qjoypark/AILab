@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lab.common.exception.BusinessException;
 import com.lab.inventory.client.MaterialClient;
+import com.lab.inventory.entity.StorageLocation;
 import com.lab.inventory.entity.StockInventory;
+import com.lab.inventory.entity.Warehouse;
+import com.lab.inventory.mapper.StorageLocationMapper;
 import com.lab.inventory.mapper.StockInventoryMapper;
+import com.lab.inventory.mapper.WarehouseMapper;
 import com.lab.inventory.service.StockInventoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,8 +19,10 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 库存服务实现
@@ -29,6 +35,8 @@ public class StockInventoryServiceImpl implements StockInventoryService {
 
     private final StockInventoryMapper stockInventoryMapper;
     private final MaterialClient materialClient;
+    private final WarehouseMapper warehouseMapper;
+    private final StorageLocationMapper storageLocationMapper;
     
     @Override
     public Page<StockInventory> listStock(
@@ -44,21 +52,44 @@ public class StockInventoryServiceImpl implements StockInventoryService {
         
         if (materialId != null) {
             wrapper.eq(StockInventory::getMaterialId, materialId);
-        } else if (StringUtils.hasText(keyword)) {
-            String normalizedKeyword = keyword.trim();
-            Long keywordMaterialId = parseMaterialId(normalizedKeyword);
-            if (keywordMaterialId != null) {
-                wrapper.eq(StockInventory::getMaterialId, keywordMaterialId);
-            } else {
-                List<Long> materialIds = materialClient.searchMaterialIdsByKeyword(normalizedKeyword);
-                if (materialIds == null || materialIds.isEmpty()) {
-                    pageParam.setTotal(0);
-                    pageParam.setRecords(List.of());
-                    return pageParam;
-                }
-                wrapper.in(StockInventory::getMaterialId, materialIds);
-            }
         }
+
+        if (StringUtils.hasText(keyword)) {
+            String normalizedKeyword = keyword.trim();
+            List<Long> materialIds = resolveMaterialIdsByKeyword(normalizedKeyword);
+            List<Long> warehouseIds = searchWarehouseIdsByKeyword(normalizedKeyword);
+            List<Long> locationIds = searchStorageLocationIdsByKeyword(normalizedKeyword);
+
+            wrapper.and(condition -> {
+                boolean hasAppended = false;
+
+                if (!materialIds.isEmpty()) {
+                    condition.in(StockInventory::getMaterialId, materialIds);
+                    hasAppended = true;
+                }
+                if (StringUtils.hasText(normalizedKeyword)) {
+                    if (hasAppended) {
+                        condition.or();
+                    }
+                    condition.like(StockInventory::getBatchNumber, normalizedKeyword);
+                    hasAppended = true;
+                }
+                if (!warehouseIds.isEmpty()) {
+                    if (hasAppended) {
+                        condition.or();
+                    }
+                    condition.in(StockInventory::getWarehouseId, warehouseIds);
+                    hasAppended = true;
+                }
+                if (!locationIds.isEmpty()) {
+                    if (hasAppended) {
+                        condition.or();
+                    }
+                    condition.in(StockInventory::getStorageLocationId, locationIds);
+                }
+            });
+        }
+
         if (warehouseId != null) {
             wrapper.eq(StockInventory::getWarehouseId, warehouseId);
         }
@@ -123,6 +154,50 @@ public class StockInventoryServiceImpl implements StockInventoryService {
         } catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    private List<Long> resolveMaterialIdsByKeyword(String keyword) {
+        Set<Long> materialIdSet = new LinkedHashSet<>();
+        Long parsedId = parseMaterialId(keyword);
+        if (parsedId != null) {
+            materialIdSet.add(parsedId);
+        }
+
+        List<Long> searchedMaterialIds = materialClient.searchMaterialIdsByKeyword(keyword);
+        if (searchedMaterialIds != null && !searchedMaterialIds.isEmpty()) {
+            materialIdSet.addAll(searchedMaterialIds);
+        }
+        return new ArrayList<>(materialIdSet);
+    }
+
+    private List<Long> searchWarehouseIdsByKeyword(String keyword) {
+        LambdaQueryWrapper<Warehouse> wrapper = new LambdaQueryWrapper<>();
+        wrapper.like(Warehouse::getWarehouseName, keyword)
+                .or()
+                .like(Warehouse::getWarehouseCode, keyword)
+                .or()
+                .like(Warehouse::getLocation, keyword);
+        List<Warehouse> warehouses = warehouseMapper.selectList(wrapper);
+        if (warehouses == null || warehouses.isEmpty()) {
+            return List.of();
+        }
+        return warehouses.stream().map(Warehouse::getId).toList();
+    }
+
+    private List<Long> searchStorageLocationIdsByKeyword(String keyword) {
+        LambdaQueryWrapper<StorageLocation> wrapper = new LambdaQueryWrapper<>();
+        wrapper.like(StorageLocation::getLocationName, keyword)
+                .or()
+                .like(StorageLocation::getLocationCode, keyword)
+                .or()
+                .like(StorageLocation::getShelfNumber, keyword)
+                .or()
+                .like(StorageLocation::getLayerNumber, keyword);
+        List<StorageLocation> locations = storageLocationMapper.selectList(wrapper);
+        if (locations == null || locations.isEmpty()) {
+            return List.of();
+        }
+        return locations.stream().map(StorageLocation::getId).toList();
     }
     
     @Override

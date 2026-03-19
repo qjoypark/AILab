@@ -9,39 +9,48 @@ import com.lab.inventory.service.StockOutService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 出库管理控制器
- */
 @Tag(name = "出库管理")
 @RestController
 @RequestMapping("/api/v1/inventory/stock-out")
 @RequiredArgsConstructor
 public class StockOutController {
-    
+
     private final StockOutService stockOutService;
-    
-    @Operation(summary = "查询出库单列表")
+
+    @Operation(summary = "分页查询出库单列表")
     @GetMapping
     public Result<Page<StockOut>> listStockOut(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long warehouseId,
-            @RequestParam(required = false) Integer status) {
-        Page<StockOut> result = stockOutService.listStockOut(page, size, warehouseId, status);
+            @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime createdTimeStart,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") LocalDateTime createdTimeEnd) {
+        Page<StockOut> result = stockOutService.listStockOut(
+                page,
+                size,
+                keyword,
+                warehouseId,
+                status,
+                createdTimeStart,
+                createdTimeEnd
+        );
         return Result.success(result);
     }
-    
+
     @Operation(summary = "查询出库单详情")
     @GetMapping("/{id}")
     public Result<StockOut> getStockOut(@PathVariable Long id) {
-        StockOut stockOut = stockOutService.getStockOutById(id);
-        return Result.success(stockOut);
+        return Result.success(stockOutService.getStockOutById(id));
     }
 
     @Operation(summary = "按申请单查询已生成出库单")
@@ -49,32 +58,30 @@ public class StockOutController {
     public Result<List<StockOutOrderSummaryDTO>> listByApplication(@PathVariable Long applicationId) {
         return Result.success(stockOutService.listStockOutByApplicationId(applicationId));
     }
-    
+
     @Operation(summary = "创建出库单")
     @PostMapping
     public Result<StockOut> createStockOut(@Validated @RequestBody StockOutDTO dto) {
-        StockOut stockOut = stockOutService.createStockOut(dto);
-        return Result.success(stockOut);
+        return Result.success(stockOutService.createStockOut(dto));
     }
-    
+
     @Operation(summary = "根据申请单创建出库单")
     @PostMapping("/from-application")
     public Result<StockOut> createStockOutFromApplication(@RequestBody Map<String, Long> request) {
         Long applicationId = request.get("applicationId");
         if (applicationId == null) {
-            return Result.error(400, "申请单ID不能为空");
+            return Result.error(400, "applicationId cannot be null");
         }
-        StockOut stockOut = stockOutService.createStockOutFromApplication(applicationId);
-        return Result.success(stockOut);
+        return Result.success(stockOutService.createStockOutFromApplication(applicationId));
     }
-    
+
     @Operation(summary = "确认出库")
     @PostMapping("/{id}/confirm")
     public Result<Void> confirmStockOut(@PathVariable Long id) {
         stockOutService.confirmStockOut(id);
         return Result.success();
     }
-    
+
     @Operation(summary = "取消出库单")
     @PostMapping("/{id}/cancel")
     public Result<Void> cancelStockOut(@PathVariable Long id) {

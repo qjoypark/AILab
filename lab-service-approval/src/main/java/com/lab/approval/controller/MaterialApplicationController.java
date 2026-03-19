@@ -18,6 +18,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -53,13 +54,36 @@ public class MaterialApplicationController {
     public Result<Page<MaterialApplication>> listApplications(
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "10") int size,
-            @Parameter(description = "状态") @RequestParam(required = false) Integer status,
+            @Parameter(description = "后端状态") @RequestParam(required = false) Integer status,
             @Parameter(description = "申请类型") @RequestParam(required = false) Integer applicationType,
-            @Parameter(description = "开始日期") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @Parameter(description = "结束日期") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+            @Parameter(description = "关键词（申请单号/申请人/部门）") @RequestParam(required = false) String keyword,
+            @Parameter(description = "前端状态（1审批中 2审批通过 3审批拒绝 4已出库 5已取消）") @RequestParam(required = false) Integer uiStatus,
+            @Parameter(description = "开始日期")
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "结束日期")
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
     ) {
-        log.info("查询申请列表: page={}, size={}, status={}, applicationType={}", page, size, status, applicationType);
-        Page<MaterialApplication> result = applicationService.listApplications(page, size, status, applicationType, startDate, endDate);
+        log.info("查询申请列表: page={}, size={}, status={}, applicationType={}, keyword={}, uiStatus={}",
+                page, size, status, applicationType, keyword, uiStatus);
+        Page<MaterialApplication> result = applicationService.listApplications(
+                page, size, status, applicationType, keyword, uiStatus, startDate, endDate
+        );
+        return Result.success(result);
+    }
+
+    @GetMapping("/pending")
+    public Result<List<MaterialApplicationDTO>> listPendingApplications(
+            @RequestParam(required = false) Long approverId,
+            HttpServletRequest httpRequest
+    ) {
+        Long targetApproverId = approverId;
+        if (targetApproverId == null) {
+            RequestUserContextResolver.CurrentUser currentUser = requestUserContextResolver.resolve(httpRequest);
+            targetApproverId = currentUser.userId();
+        }
+        List<MaterialApplicationDTO> result = applicationService.listPendingApplications(targetApproverId);
         return Result.success(result);
     }
 

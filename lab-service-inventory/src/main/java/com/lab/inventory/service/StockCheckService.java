@@ -12,7 +12,7 @@ public interface StockCheckService {
     /**
      * 分页查询盘点单列表
      */
-    Page<StockCheck> listStockCheck(int page, int size, Long warehouseId, Integer status);
+    Page<StockCheck> listStockCheck(int page, int size, String keyword, Long warehouseId, Integer status);
     
     /**
      * 根据ID查询盘点单详情

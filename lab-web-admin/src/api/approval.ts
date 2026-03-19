@@ -22,13 +22,55 @@ const mapApplicationStatus = (status?: number) => {
   return 1
 }
 
+const roleDisplayNameMap: Record<string, string> = {
+  ADMIN: '系统管理员',
+  CENTER_ADMIN: '实验中心主任',
+  LAB_MANAGER: '实验室负责人',
+  TEACHER: '教师',
+  STUDENT: '学生',
+  EQUIPMENT_ADMIN: '设备管理员',
+  '001': '学院院长',
+  '002': '学院副院长',
+  '003': '实验中心主任',
+  '005': '实验中心管理人员',
+  '006': '教师',
+  '008': '学生'
+}
+
+const mapApprovalRoleName = (role?: string): string => {
+  if (!role) {
+    return ''
+  }
+  const roleKey = String(role).trim()
+  return roleDisplayNameMap[roleKey] ?? roleKey
+}
+
+const mapPendingStatus = (item: any): string => {
+  if (item.currentPendingStatus) {
+    return item.currentPendingStatus
+  }
+  if (item.status === 3 || item.approvalStatus === 2) return '审批通过'
+  if (item.status === 4 || item.approvalStatus === 3) return '审批拒绝'
+  if (item.status === 5) return '出库流程中'
+  if (item.status === 6) return '已完成'
+  if (item.status === 7) return '已取消'
+  return '待审批'
+}
+
 const mapApplication = (item: any): MaterialApplication => ({
   ...item,
   applicationCode: item.applicationCode ?? item.applicationNo,
   applicationPurpose: item.applicationPurpose ?? item.usagePurpose,
   department: item.department ?? item.applicantDept,
   status: mapApplicationStatus(item.status),
+  approvalStatus: item.approvalStatus,
   currentApprovalLevel: item.currentApprovalLevel ?? 1,
+  currentApproverId: item.currentApproverId,
+  currentApproverName: item.currentApproverName,
+  currentApproverRole: mapApprovalRoleName(item.currentApproverRole),
+  currentApproverIds: item.currentApproverIds ?? [],
+  currentApproverNames: item.currentApproverNames ?? [],
+  currentPendingStatus: mapPendingStatus(item),
   stockOutFlowStatus: item.stockOutFlowStatus,
   stockOutFlowStatusName: item.stockOutFlowStatusName,
   stockOutOrderNos: item.stockOutOrderNos,
@@ -55,8 +97,13 @@ const toListResult = <T>(result: PageResult<T>, mapper?: (item: any) => T) => {
 
 export const approvalApi = {
   getApplicationList(params: ApplicationQuery) {
+    const mappedParams = {
+      ...params,
+      uiStatus: params.status,
+      status: undefined
+    }
     return request
-      .get<any, PageResult<any>>('/applications', { params })
+      .get<any, PageResult<any>>('/applications', { params: mappedParams })
       .then(result => toListResult<MaterialApplication>(result, mapApplication))
   },
 
@@ -97,20 +144,21 @@ export const approvalApi = {
 
   getTodoList() {
     return request
-      .get<any, PageResult<any>>('/applications', {
-        params: {
-          status: 2,
-          page: 1,
-          size: 100
-        }
-      })
-      .then(result => (result?.records ?? []).map(mapApplication))
+      .get<any, any[]>('/applications/pending')
+      .then(result => (result ?? []).map(mapApplication))
   },
 
-  getHazardousUsageRecords(params: { keyword?: string; status?: number; page?: number; size?: number }) {
+  getHazardousUsageRecords(params: {
+    keyword?: string
+    status?: number
+    startDate?: string
+    endDate?: string
+    page?: number
+    size?: number
+  }) {
     return request
       .get<any, PageResult<any>>('/hazardous/usage-records', { params })
-      .then(result => toListResult<HazardousUsageRecord>(result, (item) => ({
+      .then(result => toListResult<HazardousUsageRecord>(result, item => ({
         ...item,
         receiveDate: item.receiveDate ?? item.usageDate
       })))

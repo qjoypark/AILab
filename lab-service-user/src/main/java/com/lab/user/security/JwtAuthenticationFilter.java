@@ -1,5 +1,7 @@
 package com.lab.user.security;
 
+import com.lab.user.entity.SysUser;
+import com.lab.user.mapper.SysUserMapper;
 import com.lab.user.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -30,6 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     
     private final JwtUtil jwtUtil;
     private final StringRedisTemplate redisTemplate;
+    private final SysUserMapper userMapper;
     
     private static final String ACCESS_TOKEN_PREFIX = "access_token:";
     
@@ -47,16 +50,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // 解析令牌
                     Claims claims = jwtUtil.parseToken(token);
                     Long userId = Long.parseLong(claims.getSubject());
-                    String username = claims.get("username", String.class);
                     
                     // 验证Redis中的令牌（按token维度，支持多会话并存）
                     String storedUserId = redisTemplate.opsForValue().get(ACCESS_TOKEN_PREFIX + token);
                     if (storedUserId != null && storedUserId.equals(String.valueOf(userId))) {
-                        // 获取角色和权限
-                        @SuppressWarnings("unchecked")
-                        List<String> roles = claims.get("roles", List.class);
-                        @SuppressWarnings("unchecked")
-                        List<String> permissions = claims.get("permissions", List.class);
+                        SysUser user = userMapper.selectById(userId);
+                        if (user == null || user.getStatus() == null || user.getStatus() == 0) {
+                            log.warn("用户状态无效，忽略当前令牌认证: userId={}", userId);
+                            filterChain.doFilter(request, response);
+                            return;
+                        }
+
+                        List<String> roles = userMapper.selectRoleCodesByUserId(userId);
+                        List<String> permissions = userMapper.selectPermissionCodesByUserId(userId);
                         
                         // 构建权限列表
                         List<SimpleGrantedAuthority> authorities = new ArrayList<>();
@@ -69,7 +75,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         
                         // 创建认证对象
                         UsernamePasswordAuthenticationToken authentication =
-                                new UsernamePasswordAuthenticationToken(username, null, authorities);
+                                new UsernamePasswordAuthenticationToken(user.getUsername(), null, authorities);
                         
                         // 设置到Security上下文
                         SecurityContextHolder.getContext().setAuthentication(authentication);

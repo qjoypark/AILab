@@ -12,13 +12,19 @@
         <el-form-item label="关键词">
           <el-input
             v-model="queryForm.keyword"
+            class="query-keyword-input"
             placeholder="仪器编号/名称"
             clearable
-            style="width: 220px"
           />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable style="width: 160px">
+          <el-select
+            v-model="queryForm.status"
+            v-adaptive-select-width="['全部', '在用', '停用']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="在用" :value="1" />
             <el-option label="停用" :value="0" />
           </el-select>
@@ -64,7 +70,7 @@ interface Instrument {
 
 const queryForm = reactive({
   keyword: '',
-  status: undefined as number | undefined
+  status: -1 as number
 })
 
 const instrumentList = ref<Instrument[]>([])
@@ -74,7 +80,7 @@ const handleSearch = () => {
 
 const handleReset = () => {
   queryForm.keyword = ''
-  queryForm.status = undefined
+  queryForm.status = -1
   handleSearch()
 }
 </script>

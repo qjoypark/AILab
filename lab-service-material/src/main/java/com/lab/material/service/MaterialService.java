@@ -14,7 +14,7 @@ public interface MaterialService {
     /**
      * 分页查询药品列表
      */
-    Page<MaterialDTO> getMaterialPage(int page, int size, Integer materialType, String keyword, Long categoryId);
+    Page<MaterialDTO> getMaterialPage(int page, int size, Integer materialType, Integer isControlled, String keyword, Long categoryId);
     
     /**
      * 根据ID查询药品详情

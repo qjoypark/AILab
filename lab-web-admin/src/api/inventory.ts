@@ -30,6 +30,11 @@ const toListResult = <T>(result: PageResult<T>, mapper?: (item: any) => T) => {
   }
 }
 
+const normalizeStatusValue = (value: unknown): number => {
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : 0
+}
+
 const mapStockInventory = (item: any): StockInventory => ({
   ...item,
   locationId: item.locationId ?? item.storageLocationId,
@@ -41,7 +46,7 @@ const mapStockIn = (item: any): StockIn => ({
   ...item,
   stockInCode: item.stockInCode ?? item.inOrderNo,
   stockInType: item.stockInType ?? item.inType,
-  status: item.status === 1 ? 0 : item.status === 2 ? 1 : 2,
+  status: normalizeStatusValue(item.status) === 1 ? 0 : normalizeStatusValue(item.status) === 2 ? 1 : 2,
   items: (item.items ?? []).map((detail: any) => ({
     ...detail,
     stockInId: detail.stockInId ?? detail.inOrderId,
@@ -55,7 +60,7 @@ const mapStockOut = (item: any): StockOut => ({
   ...item,
   stockOutCode: item.stockOutCode ?? item.outOrderNo,
   stockOutType: item.stockOutType ?? item.outType,
-  status: item.status === 1 ? 0 : item.status === 2 ? 1 : 2,
+  status: normalizeStatusValue(item.status) === 1 ? 0 : normalizeStatusValue(item.status) === 2 ? 1 : 2,
   createdBy: item.createdBy ?? item.operatorId,
   createdTime: item.createdTime ?? item.outDate,
   items: (item.items ?? []).map((detail: any) => ({
@@ -70,7 +75,7 @@ const mapStockCheck = (item: any): StockCheck => ({
   ...item,
   checkCode: item.checkCode ?? item.checkNo,
   checkType: item.checkType ?? 1,
-  status: item.status === 1 ? 0 : item.status === 2 ? 1 : 2,
+  status: normalizeStatusValue(item.status) === 1 ? 0 : normalizeStatusValue(item.status) === 2 ? 1 : 2,
   createdBy: item.createdBy ?? item.checkerId,
   completedTime: item.completedTime ?? (item.status === 2 ? item.updatedTime : undefined),
   items: (item.items ?? []).map((detail: any) => ({
@@ -102,6 +107,7 @@ export const inventoryApi = {
 
   getStockInList(params: {
     keyword?: string
+    warehouseId?: number
     status?: number
     createdTimeStart?: string
     createdTimeEnd?: string
@@ -110,7 +116,9 @@ export const inventoryApi = {
   }) {
     const mappedParams = {
       ...params,
-      status: params.status === undefined ? undefined : (params.status === 0 ? 1 : params.status === 1 ? 2 : 3)
+      status: params.status === undefined || params.status === -1
+        ? undefined
+        : (params.status === 0 ? 1 : params.status === 1 ? 2 : 3)
     }
 
     return request
@@ -151,10 +159,20 @@ export const inventoryApi = {
     return request.post(`/inventory/stock-in/${id}/cancel`)
   },
 
-  getStockOutList(params: { keyword?: string; status?: number; page?: number; size?: number }) {
+  getStockOutList(params: {
+    keyword?: string
+    warehouseId?: number
+    status?: number
+    createdTimeStart?: string
+    createdTimeEnd?: string
+    page?: number
+    size?: number
+  }) {
     const mappedParams = {
       ...params,
-      status: params.status === undefined ? undefined : (params.status === 0 ? 1 : params.status === 1 ? 2 : 3)
+      status: params.status === undefined || params.status === -1
+        ? undefined
+        : (params.status === 0 ? 1 : params.status === 1 ? 2 : 3)
     }
 
     return request
@@ -193,10 +211,12 @@ export const inventoryApi = {
     return request.post(`/inventory/stock-out/${id}/cancel`)
   },
 
-  getStockCheckList(params: { keyword?: string; status?: number; page?: number; size?: number }) {
+  getStockCheckList(params: { keyword?: string; warehouseId?: number; status?: number; page?: number; size?: number }) {
     const mappedParams = {
       ...params,
-      status: params.status === undefined ? undefined : (params.status === 0 ? 1 : params.status === 1 ? 2 : 3)
+      status: params.status === undefined || params.status === -1
+        ? undefined
+        : (params.status === 0 ? 1 : params.status === 1 ? 2 : 3)
     }
 
     return request

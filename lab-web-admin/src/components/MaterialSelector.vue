@@ -8,10 +8,16 @@
     <!-- 搜索表单 -->
     <el-form :model="queryForm" inline style="margin-bottom: 20px">
       <el-form-item label="关键词">
-        <el-input v-model="queryForm.keyword" placeholder="药品编码/名称" clearable style="width: 200px" />
+        <el-input v-model="queryForm.keyword" class="query-keyword-input" placeholder="药品编码/名称" clearable />
       </el-form-item>
       <el-form-item label="药品类型">
-        <el-select v-model="queryForm.materialType" placeholder="请选择" clearable>
+        <el-select
+          v-model="queryForm.materialType"
+          v-adaptive-select-width="['全部', '耗材', '试剂', '危化品']"
+          placeholder="请选择"
+          clearable
+        >
+          <el-option label="全部" :value="-1" />
           <el-option label="耗材" :value="1" />
           <el-option label="试剂" :value="2" />
           <el-option label="危化品" :value="3" />
@@ -104,7 +110,7 @@ const visible = ref(props.modelValue)
 
 const queryForm = reactive<MaterialQuery>({
   keyword: '',
-  materialType: undefined,
+  materialType: -1,
   status: 1, // 只查询启用的药品
   page: 1,
   size: 10
@@ -143,7 +149,7 @@ const handleQuery = (trigger?: number | Event) => {
 
 const handleReset = () => {
   queryForm.keyword = ''
-  queryForm.materialType = undefined
+  queryForm.materialType = -1
   handleQuery()
 }
 

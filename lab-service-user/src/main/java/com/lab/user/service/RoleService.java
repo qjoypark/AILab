@@ -17,9 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -29,6 +31,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class RoleService {
+
+    private static final Set<String> PROTECTED_ROLE_CODES = new HashSet<>(Set.of("ADMIN", "ROLE_ADMIN"));
 
     private final SysRoleMapper roleMapper;
     private final SysPermissionMapper permissionMapper;
@@ -106,8 +110,19 @@ public class RoleService {
      * 删除角色（逻辑删除）
      */
     public void deleteRole(Long id) {
-        getRoleById(id);
+        SysRole role = getRoleById(id);
+        if (isProtectedRole(role.getRoleCode())) {
+            throw new BusinessException(400001, "系统管理员角色不允许删除");
+        }
         roleMapper.deleteById(id);
+    }
+
+    private boolean isProtectedRole(String roleCode) {
+        return PROTECTED_ROLE_CODES.contains(normalizeRoleCode(roleCode));
+    }
+
+    private String normalizeRoleCode(String roleCode) {
+        return roleCode == null ? "" : roleCode.trim().toUpperCase();
     }
 
     /**

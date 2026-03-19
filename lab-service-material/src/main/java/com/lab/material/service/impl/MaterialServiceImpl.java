@@ -30,7 +30,14 @@ public class MaterialServiceImpl implements MaterialService {
     private final SupplierMapper supplierMapper;
     
     @Override
-    public Page<MaterialDTO> getMaterialPage(int page, int size, Integer materialType, String keyword, Long categoryId) {
+    public Page<MaterialDTO> getMaterialPage(
+            int page,
+            int size,
+            Integer materialType,
+            Integer isControlled,
+            String keyword,
+            Long categoryId
+    ) {
         Page<Material> materialPage = new Page<>(page, size);
         
         LambdaQueryWrapper<Material> wrapper = new LambdaQueryWrapper<>();
@@ -41,6 +48,10 @@ public class MaterialServiceImpl implements MaterialService {
         
         if (categoryId != null) {
             wrapper.eq(Material::getCategoryId, categoryId);
+        }
+
+        if (isControlled != null) {
+            wrapper.eq(Material::getIsControlled, isControlled);
         }
         
         if (StringUtils.hasText(keyword)) {

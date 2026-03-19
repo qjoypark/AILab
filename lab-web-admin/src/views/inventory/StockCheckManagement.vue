@@ -14,10 +14,32 @@
       <!-- 搜索表单 -->
       <el-form :model="queryForm" inline>
         <el-form-item label="关键词">
-          <el-input v-model="queryForm.keyword" placeholder="盘点单号" clearable />
+          <el-input v-model="queryForm.keyword" class="query-keyword-input" placeholder="盘点单号" clearable />
+        </el-form-item>
+        <el-form-item label="仓库">
+          <el-select
+            v-model="queryForm.warehouseId"
+            v-adaptive-select-width="['全部', ...warehouseList.map(warehouse => warehouse.warehouseName)]"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
+            <el-option
+              v-for="warehouse in warehouseList"
+              :key="warehouse.id"
+              :label="warehouse.warehouseName"
+              :value="warehouse.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable>
+          <el-select
+            v-model="queryForm.status"
+            v-adaptive-select-width="['全部', '盘点中', '已完成']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="盘点中" :value="0" />
             <el-option label="已完成" :value="1" />
           </el-select>
@@ -287,7 +309,8 @@ const canReadMaterial = computed(() => userStore.hasPermission('material:list'))
 
 const queryForm = reactive({
   keyword: '',
-  status: undefined as number | undefined,
+  warehouseId: -1 as number,
+  status: -1 as number,
   page: 1,
   size: 10
 })
@@ -463,7 +486,8 @@ const handleQuery = (trigger?: number | Event) => {
 
 const handleReset = () => {
   queryForm.keyword = ''
-  queryForm.status = undefined
+  queryForm.warehouseId = -1
+  queryForm.status = -1
   handleQuery()
 }
 

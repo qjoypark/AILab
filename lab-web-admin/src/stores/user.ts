@@ -71,6 +71,17 @@ const normalizeRoleCode = (role: unknown): string => {
   return ''
 }
 
+const normalizeAdminAlias = (roleCode: string): string => {
+  const roleAliasMap: Record<string, string> = {
+    SUPER_ADMIN: 'ADMIN',
+    SYSTEM_ADMIN: 'ADMIN',
+    ROOT: 'ADMIN',
+    管理员: 'ADMIN',
+    系统管理员: 'ADMIN'
+  }
+  return roleAliasMap[roleCode] ?? roleCode
+}
+
 const normalizeRoles = (roles: unknown): string[] => {
   if (!Array.isArray(roles)) {
     return []
@@ -80,6 +91,7 @@ const normalizeRoles = (roles: unknown): string[] => {
     new Set(
       roles
         .map(normalizeRoleCode)
+        .map(normalizeAdminAlias)
         .filter(Boolean)
     )
   )
@@ -235,7 +247,18 @@ export const useUserStore = defineStore('user', () => {
   }
 
   const isAdmin = () => {
-    return getCurrentRoles().includes('ADMIN')
+    if (getCurrentRoles().includes('ADMIN')) {
+      return true
+    }
+
+    const username = (userInfo.value?.username ?? '').trim().toLowerCase()
+    if (username === 'admin') {
+      return true
+    }
+
+    const payload = parseJwtPayload(token.value)
+    const tokenUsername = typeof payload?.sub === 'string' ? payload.sub.trim().toLowerCase() : ''
+    return tokenUsername === 'admin'
   }
 
   return {

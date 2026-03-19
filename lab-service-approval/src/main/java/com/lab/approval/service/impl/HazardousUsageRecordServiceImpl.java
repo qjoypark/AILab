@@ -30,7 +30,14 @@ public class HazardousUsageRecordServiceImpl implements HazardousUsageRecordServ
     private final InventoryClient inventoryClient;
 
     @Override
-    public Page<HazardousUsageRecord> listUsageRecords(int page, int size, Integer status, String keyword) {
+    public Page<HazardousUsageRecord> listUsageRecords(
+            int page,
+            int size,
+            Integer status,
+            String keyword,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
         Page<HazardousUsageRecord> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<HazardousUsageRecord> wrapper = new LambdaQueryWrapper<>();
         if (status != null) {
@@ -42,6 +49,12 @@ public class HazardousUsageRecordServiceImpl implements HazardousUsageRecordServ
                 .like(HazardousUsageRecord::getUsagePurpose, keyword)
                 .or()
                 .like(HazardousUsageRecord::getUsageLocation, keyword));
+        }
+        if (startDate != null) {
+            wrapper.ge(HazardousUsageRecord::getUsageDate, startDate);
+        }
+        if (endDate != null) {
+            wrapper.le(HazardousUsageRecord::getUsageDate, endDate);
         }
         wrapper.orderByDesc(HazardousUsageRecord::getCreatedTime);
         return usageRecordMapper.selectPage(pageParam, wrapper);
@@ -98,7 +111,7 @@ public class HazardousUsageRecordServiceImpl implements HazardousUsageRecordServ
             );
 
             if (!success) {
-                log.warn("调用库存服务归还入库失败，但继续更新使用记录: recordId={}", recordId);
+                throw new BusinessException("危化品归还入库失败，请稍后重试");
             }
         }
 

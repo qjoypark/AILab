@@ -8,13 +8,31 @@
       <!-- 搜索表单 -->
       <el-form :model="queryForm" inline>
         <el-form-item label="关键词">
-          <el-input v-model="queryForm.keyword" placeholder="药品名称/用户名" clearable />
+          <el-input v-model="queryForm.keyword" class="query-keyword-input" placeholder="药品名称/用户名" clearable />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable>
+          <el-select
+            v-model="queryForm.status"
+            v-adaptive-select-width="['全部', '使用中', '已归还']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="使用中" :value="1" />
             <el-option label="已归还" :value="2" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="领用日期">
+          <el-date-picker
+            v-model="queryForm.usageDateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            style="width: 260px"
+            clearable
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">查询</el-button>
@@ -184,7 +202,8 @@ const total = ref(0)
 
 const queryForm = reactive({
   keyword: '',
-  status: undefined as number | undefined,
+  status: -1 as number,
+  usageDateRange: [] as string[],
   page: 1,
   size: 10
 })
@@ -222,7 +241,15 @@ const rules: FormRules = {
 const loadRecordList = async () => {
   loading.value = true
   try {
-    const res = await approvalApi.getHazardousUsageRecords(queryForm)
+    const [startDate, endDate] = queryForm.usageDateRange
+    const res = await approvalApi.getHazardousUsageRecords({
+      keyword: queryForm.keyword,
+      status: queryForm.status,
+      page: queryForm.page,
+      size: queryForm.size,
+      startDate,
+      endDate
+    })
     recordList.value = res.list
     total.value = res.total
   } catch (error) {
@@ -241,7 +268,8 @@ const handleQuery = (trigger?: number | Event) => {
 
 const handleReset = () => {
   queryForm.keyword = ''
-  queryForm.status = undefined
+  queryForm.status = -1
+  queryForm.usageDateRange = []
   handleQuery()
 }
 

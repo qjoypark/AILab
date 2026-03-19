@@ -5,6 +5,7 @@ import com.lab.approval.entity.HazardousUsageRecord;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * 危化品使用记录服务接口
@@ -14,7 +15,14 @@ public interface HazardousUsageRecordService {
     /**
      * 鍒嗛〉鏌ヨ鍗卞寲鍝佷娇鐢ㄨ褰?
      */
-    Page<HazardousUsageRecord> listUsageRecords(int page, int size, Integer status, String keyword);
+    Page<HazardousUsageRecord> listUsageRecords(
+            int page,
+            int size,
+            Integer status,
+            String keyword,
+            LocalDate startDate,
+            LocalDate endDate
+    );
     
     /**
      * 创建危化品使用记录

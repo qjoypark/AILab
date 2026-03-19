@@ -1,10 +1,202 @@
+:root {
+  --el-color-primary: #3b82f6;
+  --el-color-success: #10b981;
+  --el-color-warning: #f59e0b;
+  --el-color-danger: #ef4444;
+  --el-border-radius-base: 10px;
+  --el-box-shadow-light: 0 8px 26px rgba(15, 23, 42, 0.08);
+  --app-bg: #f3f6fb;
+  --app-surface: #ffffff;
+  --app-text-main: #1f2937;
+  --app-text-muted: #64748b;
+  --app-border: #e5edf8;
+  --app-card-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-html, body, #app {
+html,
+body,
+#app {
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+body {
+  font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto, Arial, sans-serif;
+  color: var(--app-text-main);
+  background:
+    radial-gradient(circle at 12% 10%, #e7f0ff 0%, transparent 40%),
+    radial-gradient(circle at 92% 88%, #ecfdf5 0%, transparent 35%),
+    var(--app-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #c8d4e8;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #b4c3dc;
+}
+
+.page-shell {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.dashboard,
+.profile-page,
+.material-list,
+.instrument-list,
+.stock-list,
+.stock-in-management,
+.stock-out-management,
+.stock-check-management,
+.warehouse-management,
+.application-list,
+.approval-todo,
+.hazardous-ledger,
+.usage-record-list,
+.alert-list,
+.message-center,
+.user-management,
+.role-management {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 !important;
+}
+
+.el-card {
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  box-shadow: var(--app-card-shadow);
+}
+
+.el-card__header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #edf2fb;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+}
+
+.el-card__body {
+  padding: 18px 20px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.el-form--inline .el-form-item {
+  margin-bottom: 12px;
+}
+
+.query-keyword-input {
+  width: 188px;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner,
+.el-input-number,
+.el-date-editor.el-input__wrapper {
+  border-radius: 10px;
+}
+
+.el-button {
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.el-button--primary {
+  box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25);
+}
+
+.el-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.el-table th.el-table__cell {
+  background: #f6f9ff !important;
+  color: #334155;
+  font-weight: 600;
+}
+
+.el-table td.el-table__cell {
+  background: #fff;
+}
+
+.el-table .el-button.is-link {
+  font-weight: 500;
+}
+
+.el-pagination {
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
+.el-tag {
+  border-radius: 999px;
+  padding: 0 10px;
+}
+
+.el-select__selected-item {
+  color: var(--app-text-main) !important;
+}
+
+.el-select__placeholder {
+  color: var(--app-text-muted) !important;
+}
+
+.el-dialog {
+  border-radius: 16px;
+}
+
+.el-dialog__header {
+  margin-right: 0;
+  padding: 18px 22px 10px;
+  border-bottom: 1px solid #edf2fb;
+}
+
+.el-dialog__body {
+  padding: 18px 22px;
+}
+
+.el-dialog__footer {
+  padding: 0 22px 18px;
+}
+
+.el-descriptions__label {
+  color: #475569;
+  font-weight: 600;
+}
+
+.el-empty {
+  padding: 28px 0;
 }

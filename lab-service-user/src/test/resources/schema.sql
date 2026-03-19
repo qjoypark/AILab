@@ -1,7 +1,7 @@
 -- 用户表
 CREATE TABLE IF NOT EXISTS sys_user (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    username VARCHAR(50) NOT NULL UNIQUE,
+    username VARCHAR(50) NOT NULL,
     password VARCHAR(255) NOT NULL,
     real_name VARCHAR(50) NOT NULL,
     phone VARCHAR(20),
@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS sys_user (
     created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_by BIGINT,
     updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted TINYINT DEFAULT 0
+    deleted TINYINT DEFAULT 0,
+    UNIQUE KEY uk_username_deleted (username, deleted)
 );
 
 -- 角色表

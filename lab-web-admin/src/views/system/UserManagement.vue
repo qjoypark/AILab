@@ -11,12 +11,18 @@
         </div>
       </template>
 
-      <el-form :model="queryForm" inline>
+      <el-form :model="queryForm" inline class="query-form">
         <el-form-item label="关键字">
-          <el-input v-model="queryForm.keyword" placeholder="用户名 / 姓名" clearable />
+          <el-input v-model="queryForm.keyword" class="query-keyword-input" placeholder="用户名 / 姓名" clearable />
         </el-form-item>
         <el-form-item label="用户类型">
-          <el-select v-model="queryForm.userType" placeholder="请选择" clearable>
+          <el-select
+            v-model="queryForm.userType"
+            v-adaptive-select-width="['全部', '管理员', '教师', '学生']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="管理员" :value="1" />
             <el-option label="教师" :value="2" />
             <el-option label="学生" :value="3" />
@@ -28,8 +34,31 @@
         </el-form-item>
       </el-form>
 
-      <el-table :data="userList" border stripe v-loading="loading">
-        <el-table-column prop="id" label="ID" width="80" />
+      <el-table :data="userList" border stripe v-loading="loading" class="data-table">
+        <el-table-column label="排序" width="130" align="center">
+          <template #default="{ $index }">
+            <div class="order-actions">
+              <el-button
+                text
+                class="order-arrow-btn"
+                :disabled="$index === 0"
+                title="上移"
+                @click="moveUserUp($index)"
+              >
+                ↑
+              </el-button>
+              <el-button
+                text
+                class="order-arrow-btn"
+                :disabled="$index === userList.length - 1"
+                title="下移"
+                @click="moveUserDown($index)"
+              >
+                ↓
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="username" label="用户名" />
         <el-table-column prop="realName" label="姓名" />
         <el-table-column label="用户类型">
@@ -134,7 +163,7 @@
     </el-dialog>
 
     <el-dialog v-model="roleDialogVisible" title="分配角色" width="500px">
-      <el-checkbox-group v-model="selectedRoleIds">
+      <el-checkbox-group v-model="selectedRoleIds" class="role-checkbox-group">
         <el-checkbox v-for="role in roleList" :key="role.id" :label="role.id">
           {{ role.roleName }}
         </el-checkbox>
@@ -165,10 +194,12 @@ const roleList = ref<Role[]>([])
 const total = ref(0)
 const currentUserId = ref<number>()
 const selectedRoleIds = ref<number[]>([])
+const USER_ORDER_STORAGE_KEY = 'lab-user-management-display-order'
+const userDisplayOrderMap = ref<Record<number, number>>({})
 
 const queryForm = reactive<UserQuery>({
   keyword: '',
-  userType: undefined,
+  userType: -1,
   page: 1,
   size: 10
 })
@@ -198,6 +229,20 @@ const roleMap = computed(() => {
   roleList.value.forEach(role => map.set(role.id, role))
   return map
 })
+
+const normalizeUsername = (username?: string) => (username ?? '').trim().toLowerCase()
+const normalizeRoleCode = (roleCode?: string) => (roleCode ?? '').trim().toUpperCase()
+const isProtectedRoleCode = (roleCode?: string) => {
+  const normalized = normalizeRoleCode(roleCode)
+  return normalized === 'ADMIN' || normalized === 'ROLE_ADMIN'
+}
+const isProtectedUsername = (username?: string) => normalizeUsername(username) === 'admin'
+const isProtectedUser = (user: Pick<User, 'username' | 'roles'>) => {
+  if (isProtectedUsername(user.username)) {
+    return true
+  }
+  return (user.roles ?? []).some(role => isProtectedRoleCode(role.roleCode))
+}
 
 const getRoleTagStyle = (roleCode?: string) => {
   const palette = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399', '#722ed1']
@@ -238,7 +283,72 @@ const fillUserRoles = async (users: User[]) => {
       }
     })
   )
-  userList.value = usersWithRoles
+  return usersWithRoles
+}
+
+const loadUserDisplayOrder = () => {
+  try {
+    const raw = localStorage.getItem(USER_ORDER_STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as Record<string, number>
+    const normalized: Record<number, number> = {}
+    Object.entries(parsed).forEach(([key, value]) => {
+      const id = Number(key)
+      if (Number.isFinite(id) && Number.isFinite(value)) {
+        normalized[id] = value
+      }
+    })
+    userDisplayOrderMap.value = normalized
+  } catch (error) {
+    console.error('加载用户显示顺序失败:', error)
+  }
+}
+
+const saveUserDisplayOrder = () => {
+  try {
+    localStorage.setItem(USER_ORDER_STORAGE_KEY, JSON.stringify(userDisplayOrderMap.value))
+  } catch (error) {
+    console.error('保存用户显示顺序失败:', error)
+  }
+}
+
+const applyUserDisplayOrder = (users: User[]) => {
+  return [...users].sort((left, right) => {
+    const leftOrder = userDisplayOrderMap.value[left.id]
+    const rightOrder = userDisplayOrderMap.value[right.id]
+    const fallback = Number.MAX_SAFE_INTEGER
+    const leftRank = Number.isFinite(leftOrder) ? leftOrder : fallback
+    const rightRank = Number.isFinite(rightOrder) ? rightOrder : fallback
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank
+    }
+    return left.id - right.id
+  })
+}
+
+const syncUserDisplayOrder = () => {
+  const nextMap = { ...userDisplayOrderMap.value }
+  userList.value.forEach((user, index) => {
+    nextMap[user.id] = index + 1
+  })
+  userDisplayOrderMap.value = nextMap
+  saveUserDisplayOrder()
+}
+
+const moveUserUp = (index: number) => {
+  if (index <= 0) return
+  const list = [...userList.value]
+  ;[list[index - 1], list[index]] = [list[index], list[index - 1]]
+  userList.value = list
+  syncUserDisplayOrder()
+}
+
+const moveUserDown = (index: number) => {
+  if (index >= userList.value.length - 1) return
+  const list = [...userList.value]
+  ;[list[index], list[index + 1]] = [list[index + 1], list[index]]
+  userList.value = list
+  syncUserDisplayOrder()
 }
 
 const loadRoleList = async () => {
@@ -250,8 +360,11 @@ const loadUserList = async () => {
   loading.value = true
   try {
     const res = await userApi.getUserList(queryForm)
-    total.value = res.total
-    await fillUserRoles(res.list)
+    const visibleUsers = res.list.filter(user => !isProtectedUsername(user.username))
+    total.value = Math.max(res.total - (res.list.length - visibleUsers.length), 0)
+    const usersWithRoles = await fillUserRoles(visibleUsers)
+    const filteredUsers = usersWithRoles.filter(user => !isProtectedUser(user))
+    userList.value = applyUserDisplayOrder(filteredUsers)
   } catch (error) {
     console.error('加载用户列表失败:', error)
   } finally {
@@ -268,7 +381,7 @@ const handleQuery = (trigger?: number | Event) => {
 
 const handleReset = () => {
   queryForm.keyword = ''
-  queryForm.userType = undefined
+  queryForm.userType = -1
   queryForm.page = 1
   loadUserList()
 }
@@ -290,6 +403,10 @@ const handleAdd = () => {
 }
 
 const handleEdit = (row: User) => {
+  if (isProtectedUser(row)) {
+    ElMessage.warning('系统管理员账号不允许编辑')
+    return
+  }
   dialogTitle.value = '编辑用户'
   Object.assign(userForm, {
     id: row.id,
@@ -331,6 +448,10 @@ const handleSubmit = async () => {
 }
 
 const handleStatusChange = async (row: User) => {
+  if (isProtectedUser(row)) {
+    ElMessage.warning('系统管理员账号不允许修改状态')
+    return
+  }
   try {
     await userApi.updateUser(row.id, {
       ...row,
@@ -344,6 +465,10 @@ const handleStatusChange = async (row: User) => {
 }
 
 const handleDelete = async (row: User) => {
+  if (isProtectedUser(row)) {
+    ElMessage.warning('系统管理员账号不允许删除')
+    return
+  }
   await ElMessageBox.confirm('确定要删除该用户吗？', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
@@ -360,6 +485,10 @@ const handleDelete = async (row: User) => {
 }
 
 const handleAssignRoles = async (row: User) => {
+  if (isProtectedUser(row)) {
+    ElMessage.warning('系统管理员账号不允许分配角色')
+    return
+  }
   currentUserId.value = row.id
   try {
     selectedRoleIds.value = await userApi.getUserRoles(row.id)
@@ -391,6 +520,7 @@ const handleDialogClose = () => {
 }
 
 onMounted(async () => {
+  loadUserDisplayOrder()
   try {
     await loadRoleList()
   } catch (error) {
@@ -402,13 +532,30 @@ onMounted(async () => {
 
 <style scoped>
 .user-management {
-  padding: 20px;
+  gap: 16px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.query-form {
+  margin-bottom: 10px;
+  padding: 14px 14px 2px;
+  border: 1px solid #e9f0fb;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.data-table {
+  margin-top: 4px;
+}
+
+.data-table :deep(.el-table__row:hover > td) {
+  background: #f7fbff !important;
 }
 
 .role-tags {
@@ -419,10 +566,45 @@ onMounted(async () => {
 
 .role-tag {
   font-weight: 500;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.role-checkbox-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.role-checkbox-group :deep(.el-checkbox) {
+  margin-right: 0;
+  padding: 8px 10px;
+  border: 1px solid #e6edf9;
+  border-radius: 10px;
+  background: #f9fbff;
+}
+
+.order-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.order-arrow-btn {
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: #475569;
+}
+
+.order-arrow-btn:hover {
+  color: #1d4ed8;
 }
 
 .el-pagination {
-  margin-top: 20px;
+  margin-top: 16px;
   justify-content: flex-end;
 }
 </style>

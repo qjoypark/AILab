@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 领用申请单实体
@@ -104,4 +105,34 @@ public class MaterialApplication {
      */
     @TableLogic
     private Integer deleted;
+
+    /**
+     * 当前可审批人姓名（非持久化字段）
+     */
+    @TableField(exist = false)
+    private String currentApproverName;
+
+    /**
+     * 当前审批角色编码（非持久化字段）
+     */
+    @TableField(exist = false)
+    private String currentApproverRole;
+
+    /**
+     * 当前可审批人ID列表（非持久化字段）
+     */
+    @TableField(exist = false)
+    private List<Long> currentApproverIds;
+
+    /**
+     * 当前可审批人姓名列表（非持久化字段）
+     */
+    @TableField(exist = false)
+    private List<String> currentApproverNames;
+
+    /**
+     * 当前待审批状态描述（非持久化字段）
+     */
+    @TableField(exist = false)
+    private String currentPendingStatus;
 }

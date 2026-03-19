@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -33,10 +34,13 @@ public class StockCheckServiceImpl implements com.lab.inventory.service.StockChe
     private final StockInventoryMapper stockInventoryMapper;
     
     @Override
-    public Page<StockCheck> listStockCheck(int page, int size, Long warehouseId, Integer status) {
+    public Page<StockCheck> listStockCheck(int page, int size, String keyword, Long warehouseId, Integer status) {
         Page<StockCheck> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<StockCheck> wrapper = new LambdaQueryWrapper<>();
         
+        if (StringUtils.hasText(keyword)) {
+            wrapper.like(StockCheck::getCheckNo, keyword.trim());
+        }
         if (warehouseId != null) {
             wrapper.eq(StockCheck::getWarehouseId, warehouseId);
         }

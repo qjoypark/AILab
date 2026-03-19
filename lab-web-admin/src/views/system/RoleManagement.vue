@@ -11,8 +11,31 @@
         </div>
       </template>
 
-      <el-table :data="roleList" border stripe v-loading="loading">
-        <el-table-column prop="id" label="ID" width="80" />
+      <el-table :data="roleList" border stripe v-loading="loading" class="data-table">
+        <el-table-column label="排序" width="130" align="center">
+          <template #default="{ $index }">
+            <div class="order-actions">
+              <el-button
+                text
+                class="order-arrow-btn"
+                :disabled="$index === 0"
+                title="上移"
+                @click="moveRoleUp($index)"
+              >
+                ↑
+              </el-button>
+              <el-button
+                text
+                class="order-arrow-btn"
+                :disabled="$index === roleList.length - 1"
+                title="下移"
+                @click="moveRoleDown($index)"
+              >
+                ↓
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="roleName" label="角色名称" />
         <el-table-column prop="roleCode" label="角色编码" />
         <el-table-column prop="description" label="描述" />
@@ -83,6 +106,7 @@
       </div>
       <el-tree
         ref="treeRef"
+        class="permission-tree"
         :data="permissionTree"
         :props="{ label: 'permissionName', children: 'children' }"
         node-key="id"
@@ -115,6 +139,15 @@ const roleList = ref<Role[]>([])
 const permissionTree = ref<Permission[]>([])
 const currentRoleId = ref<number>()
 const currentRoleCode = ref('')
+const ROLE_ORDER_STORAGE_KEY = 'lab-role-management-display-order'
+const roleDisplayOrderMap = ref<Record<number, number>>({})
+
+const normalizeRoleCode = (roleCode?: string) => (roleCode ?? '').trim().toUpperCase()
+
+const isProtectedRole = (roleCode?: string) => {
+  const normalized = normalizeRoleCode(roleCode)
+  return normalized === 'ADMIN' || normalized === 'ROLE_ADMIN'
+}
 
 const permissionTemplateMap: Record<string, string[]> = {
   ADMIN: [
@@ -257,11 +290,77 @@ const collectPermissionCodeIdMap = (nodes: Permission[], codeIdMap = new Map<str
   return codeIdMap
 }
 
+const loadRoleDisplayOrder = () => {
+  try {
+    const raw = localStorage.getItem(ROLE_ORDER_STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as Record<string, number>
+    const normalized: Record<number, number> = {}
+    Object.entries(parsed).forEach(([key, value]) => {
+      const id = Number(key)
+      if (Number.isFinite(id) && Number.isFinite(value)) {
+        normalized[id] = value
+      }
+    })
+    roleDisplayOrderMap.value = normalized
+  } catch (error) {
+    console.error('加载角色显示顺序失败:', error)
+  }
+}
+
+const saveRoleDisplayOrder = () => {
+  try {
+    localStorage.setItem(ROLE_ORDER_STORAGE_KEY, JSON.stringify(roleDisplayOrderMap.value))
+  } catch (error) {
+    console.error('保存角色显示顺序失败:', error)
+  }
+}
+
+const applyRoleDisplayOrder = (roles: Role[]) => {
+  return [...roles].sort((left, right) => {
+    const leftOrder = roleDisplayOrderMap.value[left.id]
+    const rightOrder = roleDisplayOrderMap.value[right.id]
+    const fallback = Number.MAX_SAFE_INTEGER
+    const leftRank = Number.isFinite(leftOrder) ? leftOrder : fallback
+    const rightRank = Number.isFinite(rightOrder) ? rightOrder : fallback
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank
+    }
+    return left.id - right.id
+  })
+}
+
+const syncRoleDisplayOrder = () => {
+  const nextMap = { ...roleDisplayOrderMap.value }
+  roleList.value.forEach((role, index) => {
+    nextMap[role.id] = index + 1
+  })
+  roleDisplayOrderMap.value = nextMap
+  saveRoleDisplayOrder()
+}
+
+const moveRoleUp = (index: number) => {
+  if (index <= 0) return
+  const list = [...roleList.value]
+  ;[list[index - 1], list[index]] = [list[index], list[index - 1]]
+  roleList.value = list
+  syncRoleDisplayOrder()
+}
+
+const moveRoleDown = (index: number) => {
+  if (index >= roleList.value.length - 1) return
+  const list = [...roleList.value]
+  ;[list[index], list[index + 1]] = [list[index + 1], list[index]]
+  roleList.value = list
+  syncRoleDisplayOrder()
+}
+
 const loadRoleList = async () => {
   loading.value = true
   try {
     const res = await userApi.getRoleList()
-    roleList.value = res.list
+    const visibleRoles = res.list.filter(role => !isProtectedRole(role.roleCode))
+    roleList.value = applyRoleDisplayOrder(visibleRoles)
   } catch (error) {
     console.error('加载角色列表失败:', error)
   } finally {
@@ -327,6 +426,10 @@ const handleSubmit = async () => {
 }
 
 const handleDelete = async (row: Role) => {
+  if (isProtectedRole(row.roleCode)) {
+    ElMessage.warning('系统管理员角色不允许删除')
+    return
+  }
   await ElMessageBox.confirm('确定要删除该角色吗？', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
@@ -418,27 +521,72 @@ const handleDialogClose = () => {
 }
 
 onMounted(() => {
+  loadRoleDisplayOrder()
   loadRoleList()
 })
 </script>
 
 <style scoped>
 .role-management {
-  padding: 20px;
+  gap: 16px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.data-table :deep(.el-table__row:hover > td) {
+  background: #f7fbff !important;
+}
+
+.order-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.order-arrow-btn {
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: #475569;
+}
+
+.order-arrow-btn:hover {
+  color: #1d4ed8;
 }
 
 .permission-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 12px 0;
-  padding: 0 4px;
-  color: #606266;
+  margin: 12px 0 10px;
+  padding: 10px 12px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #475569;
+}
+
+.permission-tree {
+  max-height: 420px;
+  overflow: auto;
+  padding: 10px 8px;
+  border: 1px solid #e6edf9;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.permission-tree :deep(.el-tree-node__content) {
+  border-radius: 8px;
+}
+
+.permission-tree :deep(.el-tree-node__content:hover) {
+  background: #f3f8ff;
 }
 </style>

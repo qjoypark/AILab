@@ -45,6 +45,31 @@ public class MaterialApplicationDTO {
 
     private Long currentApproverId;
 
+    /**
+     * 当前可审批人姓名
+     */
+    private String currentApproverName;
+
+    /**
+     * 当前审批角色编码
+     */
+    private String currentApproverRole;
+
+    /**
+     * 当前可审批人ID列表
+     */
+    private List<Long> currentApproverIds;
+
+    /**
+     * 当前可审批人姓名列表
+     */
+    private List<String> currentApproverNames;
+
+    /**
+     * 当前待审批状态描述
+     */
+    private String currentPendingStatus;
+
     private String remark;
 
     private LocalDateTime createdTime;
@@ -70,4 +95,3 @@ public class MaterialApplicationDTO {
      */
     private List<StockOutOrderInfoDTO> stockOutOrders;
 }
-

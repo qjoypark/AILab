@@ -23,6 +23,43 @@ const normalizeToken = (value: unknown): string => {
   return ''
 }
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  Object.prototype.toString.call(value) === '[object Object]'
+
+const normalizeQueryParams = (params: unknown): unknown => {
+  if (params === undefined) {
+    return undefined
+  }
+
+  if (params instanceof URLSearchParams) {
+    return params
+  }
+
+  if (Array.isArray(params)) {
+    const normalizedArray = params
+      .map(item => normalizeQueryParams(item))
+      .filter(item => item !== undefined)
+    return normalizedArray.length > 0 ? normalizedArray : undefined
+  }
+
+  if (isPlainObject(params)) {
+    const normalized: Record<string, unknown> = {}
+
+    Object.entries(params).forEach(([key, value]) => {
+      const normalizedValue = value === -1 || value === '-1'
+        ? undefined
+        : normalizeQueryParams(value)
+      if (normalizedValue !== undefined) {
+        normalized[key] = normalizedValue
+      }
+    })
+
+    return normalized
+  }
+
+  return params
+}
+
 const request = axios.create({
   baseURL: '/api/v1',
   timeout: 30000
@@ -38,6 +75,11 @@ request.interceptors.request.use(
   (config) => {
     const userStore = useUserStore()
     const accessToken = normalizeToken(userStore.token)
+
+    if (config.params !== undefined) {
+      config.params = normalizeQueryParams(config.params) as InternalAxiosRequestConfig['params']
+    }
+
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`
     }

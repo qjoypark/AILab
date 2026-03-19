@@ -55,5 +55,8 @@ public class StockOut {
     private Integer deleted;
 
     @TableField(exist = false)
+    private String applicationNo;
+
+    @TableField(exist = false)
     private List<StockOutDetail> items;
 }

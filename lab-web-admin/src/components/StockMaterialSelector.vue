@@ -9,9 +9,9 @@
       <el-form-item label="关键词">
         <el-input
           v-model="queryForm.keyword"
+          class="query-keyword-input"
           placeholder="药品编码/名称"
           clearable
-          style="width: 240px"
           @input="applyFilter"
         />
       </el-form-item>
@@ -57,6 +57,7 @@ interface StockMaterialSelection {
 
 interface Props {
   modelValue: boolean
+  warehouseId?: number
 }
 
 interface Emits {
@@ -82,6 +83,16 @@ watch(() => props.modelValue, async (value) => {
   if (value) {
     await loadStockMaterials()
   }
+})
+
+watch(() => props.warehouseId, async (current, previous) => {
+  if (!visible.value) {
+    return
+  }
+  if (current === previous) {
+    return
+  }
+  await loadStockMaterials()
 })
 
 watch(visible, (value) => {
@@ -112,7 +123,8 @@ const loadStockMaterials = async () => {
     do {
       const pageResult = await inventoryApi.getStockList({
         page,
-        size
+        size,
+        warehouseId: props.warehouseId && props.warehouseId > 0 ? props.warehouseId : undefined
       })
       total = pageResult.total
       if (pageResult.list.length === 0) {

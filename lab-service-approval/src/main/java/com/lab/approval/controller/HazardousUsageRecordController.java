@@ -11,8 +11,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -32,8 +34,12 @@ public class HazardousUsageRecordController {
         @RequestParam(defaultValue = "1") Integer page,
         @RequestParam(defaultValue = "10") Integer size,
         @RequestParam(required = false) Integer status,
-        @RequestParam(required = false) String keyword) {
-        return Result.success(usageRecordService.listUsageRecords(page, size, status, keyword));
+        @RequestParam(required = false) String keyword,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return Result.success(usageRecordService.listUsageRecords(page, size, status, keyword, startDate, endDate));
     }
 
     @PostMapping

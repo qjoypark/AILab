@@ -2,6 +2,7 @@ package com.lab.inventory.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lab.common.result.Result;
+import com.lab.inventory.dto.HazardousReturnStockInRequest;
 import com.lab.inventory.dto.StockInDTO;
 import com.lab.inventory.entity.StockIn;
 import com.lab.inventory.service.StockInService;
@@ -30,6 +31,7 @@ public class StockInController {
     public Result<Page<StockIn>> listStockIn(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Integer status,
             @RequestParam(required = false)
@@ -41,6 +43,7 @@ public class StockInController {
         Page<StockIn> result = stockInService.listStockIn(
                 page,
                 size,
+                keyword,
                 warehouseId,
                 status,
                 createdTimeStart,
@@ -75,5 +78,12 @@ public class StockInController {
     public Result<Void> cancelStockIn(@PathVariable Long id) {
         stockInService.cancelStockIn(id);
         return Result.success();
+    }
+
+    @Operation(summary = "危化品归还自动入库")
+    @PostMapping("/hazardous-return")
+    public Result<Long> hazardousReturnStockIn(@Validated @RequestBody HazardousReturnStockInRequest request) {
+        Long stockInId = stockInService.hazardousReturnStockIn(request);
+        return Result.success(stockInId);
     }
 }

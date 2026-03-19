@@ -23,9 +23,15 @@ public class UserClientImpl implements UserClient {
         
         UserInfo info = new UserInfo();
         info.setId(userId);
-        info.setUsername("user" + userId);
-        info.setRealName("测试用户-" + userId);
-        info.setUserType(2); // 教师
+        if (userId != null && userId == 1L) {
+            info.setUsername("admin");
+            info.setRealName("系统管理员");
+            info.setUserType(1); // 管理员
+        } else {
+            info.setUsername("user" + userId);
+            info.setRealName("测试用户-" + userId);
+            info.setUserType(2); // 教师
+        }
         info.setDepartment("测试部门");
         info.setSafetyCertStatus(1); // 已认证
         info.setSafetyCertExpireDate(LocalDate.now().plusMonths(6)); // 6个月后过期

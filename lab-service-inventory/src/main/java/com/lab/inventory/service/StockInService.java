@@ -1,6 +1,7 @@
 package com.lab.inventory.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.lab.inventory.dto.HazardousReturnStockInRequest;
 import com.lab.inventory.dto.StockInDTO;
 import com.lab.inventory.entity.StockIn;
 
@@ -17,6 +18,7 @@ public interface StockInService {
     Page<StockIn> listStockIn(
             int page,
             int size,
+            String keyword,
             Long warehouseId,
             Integer status,
             LocalDateTime createdTimeStart,
@@ -42,4 +44,11 @@ public interface StockInService {
      * 取消入库单
      */
     void cancelStockIn(Long id);
+
+    /**
+     * 危化品归还自动入库
+     *
+     * @return 自动生成的入库单ID
+     */
+    Long hazardousReturnStockIn(HazardousReturnStockInRequest request);
 }

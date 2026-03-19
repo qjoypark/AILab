@@ -5,12 +5,26 @@
         <span>待审批事项</span>
       </template>
 
-      <!-- 待审批列表 -->
       <el-table :data="todoList" border stripe v-loading="loading">
         <el-table-column prop="applicationCode" label="申请单号" width="180" />
-        <el-table-column prop="applicantName" label="申请人" width="100" />
-        <el-table-column prop="department" label="部门" width="120" />
-        <el-table-column prop="applicationPurpose" label="用途" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="applicantName" label="申请人" width="120" />
+        <el-table-column prop="department" label="部门" width="140" />
+        <el-table-column prop="applicationPurpose" label="用途" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="currentApproverName" label="当前可审批人" min-width="220">
+          <template #default="{ row }">
+            <el-space wrap v-if="row.currentApproverNames?.length">
+              <el-tag
+                v-for="(name, idx) in row.currentApproverNames"
+                :key="`${row.id}-todo-approver-${idx}`"
+                type="info"
+                effect="plain"
+              >
+                {{ name }}
+              </el-tag>
+            </el-space>
+            <span v-else>{{ row.currentApproverName || (row.currentApproverId ? `用户#${row.currentApproverId}` : '-') }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="currentApprovalLevel" label="当前审批级别" width="120" align="center">
           <template #default="{ row }">
             第 {{ row.currentApprovalLevel }} 级
@@ -25,7 +39,6 @@
       </el-table>
     </el-card>
 
-    <!-- 审批对话框 -->
     <el-dialog
       v-model="approvalDialogVisible"
       title="审批处理"
@@ -39,7 +52,7 @@
         <el-descriptions-item label="申请时间">{{ currentApplication?.createdTime }}</el-descriptions-item>
         <el-descriptions-item label="用途" :span="2">{{ currentApplication?.applicationPurpose }}</el-descriptions-item>
         <el-descriptions-item label="使用地点">{{ currentApplication?.usageLocation }}</el-descriptions-item>
-        <el-descriptions-item label="期望日期">{{ currentApplication?.expectedDate }}</el-descriptions-item>
+        <el-descriptions-item label="期望使用日期">{{ currentApplication?.expectedDate }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider>申请明细</el-divider>
@@ -133,8 +146,7 @@ const loadTodoList = async () => {
 const handleApprove = async (row: MaterialApplication) => {
   try {
     currentApplication.value = await approvalApi.getApplicationById(row.id)
-    
-    // 初始化批准数量为申请数量
+
     if (currentApplication.value.items) {
       currentApplication.value.items.forEach(item => {
         if (!item.approvedQuantity) {
@@ -142,11 +154,9 @@ const handleApprove = async (row: MaterialApplication) => {
         }
       })
     }
-    
-    // 重置表单
+
     approvalForm.approvalResult = 1
     approvalForm.approvalOpinion = ''
-    
     approvalDialogVisible.value = true
   } catch (error) {
     console.error('加载申请详情失败:', error)
@@ -156,16 +166,15 @@ const handleApprove = async (row: MaterialApplication) => {
 const handleSubmitApproval = async () => {
   const application = currentApplication.value
   if (!formRef.value || !application) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    
-    // 构建审批数据
+
     approvalForm.itemApprovals = application.items?.map(item => ({
       itemId: item.id!,
       approvedQuantity: item.approvedQuantity || 0
     })) || []
-    
+
     submitting.value = true
     try {
       await approvalApi.approveApplication(application.id, approvalForm)

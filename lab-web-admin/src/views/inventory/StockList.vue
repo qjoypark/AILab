@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>库存查询</span>
-          <div>
+          <div class="header-actions">
             <el-button v-if="canAccessStockIn" type="primary" @click="goToStockIn">入库</el-button>
             <el-button v-if="canAccessStockOut" type="success" @click="goToStockOut">出库</el-button>
             <el-button v-if="canAccessStockCheck" type="warning" @click="goToStockCheck">盘点</el-button>
@@ -13,12 +13,18 @@
       </template>
 
       <!-- 搜索表单 -->
-      <el-form :model="queryForm" inline>
+      <el-form :model="queryForm" inline class="query-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryForm.keyword" placeholder="药品编码/名称" clearable style="width: 200px" />
+          <el-input v-model="queryForm.keyword" class="query-keyword-input" placeholder="药品编码/名称/仓库" clearable />
         </el-form-item>
         <el-form-item label="仓库">
-          <el-select v-model="queryForm.warehouseId" placeholder="请选择" clearable>
+          <el-select
+            v-model="queryForm.warehouseId"
+            v-adaptive-select-width="['全部', ...warehouseList.map(warehouse => warehouse.warehouseName)]"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option
               v-for="warehouse in warehouseList"
               :key="warehouse.id"
@@ -37,7 +43,7 @@
       </el-form>
 
       <!-- 库存列表 -->
-      <el-table :data="stockList" border stripe v-loading="loading">
+      <el-table :data="stockList" border stripe v-loading="loading" class="data-table">
         <el-table-column prop="materialCode" label="药品编码" width="120" />
         <el-table-column prop="materialName" label="药品名称" min-width="150" />
         <el-table-column prop="warehouseName" label="仓库" width="120" />
@@ -83,7 +89,7 @@
 
     <!-- 库存明细对话框 -->
     <el-dialog v-model="detailDialogVisible" title="库存明细" width="900px">
-      <el-table :data="stockDetailList" border>
+      <el-table :data="stockDetailList" border class="detail-table">
         <el-table-column prop="warehouseName" label="仓库" />
         <el-table-column prop="locationName" label="存储位置" />
         <el-table-column prop="batchNumber" label="批次号" />
@@ -130,7 +136,7 @@ const canReadMaterial = computed(() => userStore.hasPermission('material:list'))
 
 const queryForm = reactive<StockQuery>({
   keyword: '',
-  warehouseId: undefined,
+  warehouseId: -1,
   lowStock: false,
   page: 1,
   size: 10
@@ -262,7 +268,7 @@ const handleQuery = (trigger?: number | Event) => {
 
 const handleReset = () => {
   queryForm.keyword = ''
-  queryForm.warehouseId = undefined
+  queryForm.warehouseId = -1
   queryForm.lowStock = false
   handleQuery()
 }
@@ -324,27 +330,57 @@ onMounted(async () => {
 
 <style scoped>
 .stock-list {
-  padding: 20px;
+  gap: 16px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.query-form {
+  margin-bottom: 10px;
+  padding: 14px 14px 2px;
+  border: 1px solid #e9f0fb;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.data-table :deep(.el-table__row:hover > td) {
+  background: #f7fbff !important;
+}
+
+.detail-table {
+  border-radius: 10px;
+  overflow: hidden;
 }
 
 .el-pagination {
-  margin-top: 20px;
+  margin-top: 16px;
   justify-content: flex-end;
 }
 
 .low-stock {
-  color: #f56c6c;
-  font-weight: bold;
+  color: #ef4444;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.12);
 }
 
 .expiring-soon {
-  color: #e6a23c;
-  font-weight: bold;
+  color: #f59e0b;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.15);
 }
 </style>

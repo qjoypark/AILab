@@ -10,6 +10,7 @@ import com.lab.user.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -94,7 +95,11 @@ public class UserService {
             user.setPassword(passwordEncoder.encode("123456"));
         }
 
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (DataIntegrityViolationException exception) {
+            throw new BusinessException(ResultCode.USERNAME_EXISTS);
+        }
 
         if (userDTO.getRoleIds() != null && !userDTO.getRoleIds().isEmpty()) {
             assignRoles(user.getId(), userDTO.getRoleIds());
@@ -131,7 +136,11 @@ public class UserService {
             user.setPassword(null);
         }
 
-        userMapper.updateById(user);
+        try {
+            userMapper.updateById(user);
+        } catch (DataIntegrityViolationException exception) {
+            throw new BusinessException(ResultCode.USERNAME_EXISTS);
+        }
 
         if (userDTO.getRoleIds() != null) {
             jdbcTemplate.update("DELETE FROM sys_user_role WHERE user_id = ?", userDTO.getId());
@@ -147,6 +156,10 @@ public class UserService {
     public void deleteUser(Long operatorId, Long targetUserId) {
         assertOperatorCanManageTarget(operatorId, targetUserId, "删除");
         getUserById(targetUserId);
+        SysUser recycledUser = new SysUser();
+        recycledUser.setId(targetUserId);
+        recycledUser.setUsername(buildDeletedUsername(targetUserId));
+        userMapper.updateById(recycledUser);
         userMapper.deleteById(targetUserId);
     }
 
@@ -245,5 +258,9 @@ public class UserService {
     private boolean containsRole(List<String> roleCodes, String expectedRoleCode) {
         return roleCodes.stream()
                 .anyMatch(roleCode -> expectedRoleCode.equalsIgnoreCase(roleCode));
+    }
+
+    private String buildDeletedUsername(Long userId) {
+        return "deleted_" + userId + "_" + System.currentTimeMillis();
     }
 }

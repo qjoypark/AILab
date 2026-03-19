@@ -12,12 +12,34 @@
       </template>
 
       <!-- 搜索表单 -->
-      <el-form :model="queryForm" inline>
+      <el-form :model="queryForm" inline class="query-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryForm.keyword" placeholder="入库单号" clearable />
+          <el-input v-model="queryForm.keyword" class="query-keyword-input" placeholder="入库单号" clearable />
+        </el-form-item>
+        <el-form-item label="仓库">
+          <el-select
+            v-model="queryForm.warehouseId"
+            v-adaptive-select-width="['全部', ...warehouseList.map(warehouse => warehouse.warehouseName)]"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
+            <el-option
+              v-for="warehouse in warehouseList"
+              :key="warehouse.id"
+              :label="warehouse.warehouseName"
+              :value="warehouse.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable>
+          <el-select
+            v-model="queryForm.status"
+            v-adaptive-select-width="['全部', '待确认', '已确认']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="待确认" :value="0" />
             <el-option label="已确认" :value="1" />
           </el-select>
@@ -25,11 +47,12 @@
         <el-form-item label="创建时间">
           <el-date-picker
             v-model="queryForm.createdTimeRange"
-            type="datetimerange"
-            value-format="YYYY-MM-DD HH:mm:ss"
+            type="daterange"
+            value-format="YYYY-MM-DD"
             range-separator="至"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            style="width: 260px"
             clearable
           />
         </el-form-item>
@@ -41,7 +64,7 @@
 
       <template v-if="canListStockIn">
       <!-- 入库单列表 -->
-      <el-table :data="stockInList" border stripe v-loading="loading">
+      <el-table :data="stockInList" border stripe v-loading="loading" class="data-table">
         <el-table-column prop="stockInCode" label="入库单号" width="180" />
         <el-table-column prop="warehouseName" label="仓库" width="140">
           <template #default="{ row }">
@@ -129,6 +152,7 @@
         :model="stockInForm"
         :rules="rules"
         label-width="100px"
+        class="stock-form"
       >
         <el-row :gutter="20">
           <el-col :span="12">
@@ -164,7 +188,7 @@
           type="primary"
           size="small"
           @click="handleAddItem"
-          style="margin-bottom: 10px"
+          class="add-item-btn"
         >
           添加药品
         </el-button>
@@ -324,7 +348,8 @@ const canReadMaterial = computed(() => userStore.hasPermission('material:list'))
 
 const queryForm = reactive({
   keyword: '',
-  status: undefined as number | undefined,
+  warehouseId: -1 as number,
+  status: -1 as number,
   createdTimeRange: [] as string[],
   page: 1,
   size: 10
@@ -482,9 +507,12 @@ const loadStockInList = async () => {
 
   loading.value = true
   try {
-    const [createdTimeStart, createdTimeEnd] = queryForm.createdTimeRange
+    const [createdDateStart, createdDateEnd] = queryForm.createdTimeRange
+    const createdTimeStart = createdDateStart ? `${createdDateStart} 00:00:00` : undefined
+    const createdTimeEnd = createdDateEnd ? `${createdDateEnd} 23:59:59` : undefined
     const res = await inventoryApi.getStockInList({
       keyword: queryForm.keyword,
+      warehouseId: queryForm.warehouseId,
       status: queryForm.status,
       page: queryForm.page,
       size: queryForm.size,
@@ -521,7 +549,8 @@ const handleQuery = (trigger?: number | Event) => {
 
 const handleReset = () => {
   queryForm.keyword = ''
-  queryForm.status = undefined
+  queryForm.warehouseId = -1
+  queryForm.status = -1
   queryForm.createdTimeRange = []
   handleQuery()
 }
@@ -692,17 +721,40 @@ onMounted(async () => {
 
 <style scoped>
 .stock-in-management {
-  padding: 20px;
+  gap: 16px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.query-form {
+  margin-bottom: 10px;
+  padding: 14px 14px 2px;
+  border: 1px solid #e9f0fb;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.data-table :deep(.el-table__row:hover > td) {
+  background: #f7fbff !important;
+}
+
+.stock-form :deep(.el-divider__text) {
+  font-weight: 600;
+  color: #334155;
+}
+
+.add-item-btn {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 
 .el-pagination {
-  margin-top: 20px;
+  margin-top: 16px;
   justify-content: flex-end;
 }
 </style>

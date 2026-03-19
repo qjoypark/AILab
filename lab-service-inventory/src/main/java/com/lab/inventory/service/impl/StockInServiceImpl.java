@@ -4,19 +4,24 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lab.common.annotation.AuditLog;
 import com.lab.common.exception.BusinessException;
+import com.lab.inventory.dto.HazardousReturnStockInRequest;
 import com.lab.inventory.dto.StockInDTO;
 import com.lab.inventory.entity.StockIn;
 import com.lab.inventory.entity.StockInDetail;
 import com.lab.inventory.entity.StockInventory;
+import com.lab.inventory.entity.Warehouse;
 import com.lab.inventory.mapper.StockInDetailMapper;
 import com.lab.inventory.mapper.StockInMapper;
 import com.lab.inventory.mapper.StockInventoryMapper;
+import com.lab.inventory.mapper.WarehouseMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -28,14 +33,19 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StockInServiceImpl implements com.lab.inventory.service.StockInService {
     
+    private static final Long DEFAULT_SYSTEM_OPERATOR_ID = 1L;
+    private static final int HAZARDOUS_WAREHOUSE_TYPE = 2;
+
     private final StockInMapper stockInMapper;
     private final StockInDetailMapper stockInDetailMapper;
     private final StockInventoryMapper stockInventoryMapper;
+    private final WarehouseMapper warehouseMapper;
     
     @Override
     public Page<StockIn> listStockIn(
             int page,
             int size,
+            String keyword,
             Long warehouseId,
             Integer status,
             LocalDateTime createdTimeStart,
@@ -44,6 +54,9 @@ public class StockInServiceImpl implements com.lab.inventory.service.StockInServ
         Page<StockIn> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<StockIn> wrapper = new LambdaQueryWrapper<>();
         
+        if (StringUtils.hasText(keyword)) {
+            wrapper.like(StockIn::getInOrderNo, keyword.trim());
+        }
         if (warehouseId != null) {
             wrapper.eq(StockIn::getWarehouseId, warehouseId);
         }
@@ -166,6 +179,45 @@ public class StockInServiceImpl implements com.lab.inventory.service.StockInServ
         stockIn.setUpdatedTime(LocalDateTime.now());
         stockInMapper.updateById(stockIn);
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long hazardousReturnStockIn(HazardousReturnStockInRequest request) {
+        if (request.getReturnQuantity() == null || request.getReturnQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("归还数量必须大于0");
+        }
+
+        Long warehouseId = selectHazardousReturnWarehouseId();
+        LocalDateTime now = LocalDateTime.now();
+
+        StockIn stockIn = new StockIn();
+        stockIn.setInOrderNo(generateInOrderNo());
+        stockIn.setInType(3); // 其他入库
+        stockIn.setWarehouseId(warehouseId);
+        stockIn.setInDate(LocalDate.now());
+        stockIn.setOperatorId(DEFAULT_SYSTEM_OPERATOR_ID);
+        stockIn.setStatus(2); // 自动确认入库
+        stockIn.setTotalAmount(BigDecimal.ZERO);
+        stockIn.setRemark(request.getRemark());
+        stockIn.setCreatedBy(DEFAULT_SYSTEM_OPERATOR_ID);
+        stockIn.setCreatedTime(now);
+        stockIn.setUpdatedBy(DEFAULT_SYSTEM_OPERATOR_ID);
+        stockIn.setUpdatedTime(now);
+        stockInMapper.insert(stockIn);
+
+        StockInDetail detail = new StockInDetail();
+        detail.setInOrderId(stockIn.getId());
+        detail.setMaterialId(request.getMaterialId());
+        detail.setBatchNumber("HZ-RETURN-" + now.format(DateTimeFormatter.ofPattern("yyyyMMdd")));
+        detail.setQuantity(request.getReturnQuantity());
+        detail.setUnitPrice(BigDecimal.ZERO);
+        detail.setTotalAmount(BigDecimal.ZERO);
+        detail.setCreatedTime(now);
+        stockInDetailMapper.insert(detail);
+
+        updateInventory(stockIn, detail);
+        return stockIn.getId();
+    }
     
     /**
      * 更新库存
@@ -210,6 +262,29 @@ public class StockInServiceImpl implements com.lab.inventory.service.StockInServ
             
             stockInventoryMapper.insert(inventory);
         }
+    }
+
+    private Long selectHazardousReturnWarehouseId() {
+        LambdaQueryWrapper<Warehouse> hazardousWarehouseWrapper = new LambdaQueryWrapper<>();
+        hazardousWarehouseWrapper.eq(Warehouse::getWarehouseType, HAZARDOUS_WAREHOUSE_TYPE);
+        hazardousWarehouseWrapper.eq(Warehouse::getStatus, 1);
+        hazardousWarehouseWrapper.orderByAsc(Warehouse::getId);
+        hazardousWarehouseWrapper.last("LIMIT 1");
+        Warehouse hazardousWarehouse = warehouseMapper.selectOne(hazardousWarehouseWrapper);
+        if (hazardousWarehouse != null) {
+            return hazardousWarehouse.getId();
+        }
+
+        LambdaQueryWrapper<Warehouse> activeWarehouseWrapper = new LambdaQueryWrapper<>();
+        activeWarehouseWrapper.eq(Warehouse::getStatus, 1);
+        activeWarehouseWrapper.orderByAsc(Warehouse::getId);
+        activeWarehouseWrapper.last("LIMIT 1");
+        Warehouse fallbackWarehouse = warehouseMapper.selectOne(activeWarehouseWrapper);
+        if (fallbackWarehouse != null) {
+            return fallbackWarehouse.getId();
+        }
+
+        throw new BusinessException("未找到可用仓库，无法执行危化品归还入库");
     }
     
     /**

@@ -11,16 +11,54 @@
         </div>
       </template>
 
-      <!-- 搜索表单 -->
-      <el-form :model="queryForm" inline>
+      <el-form :model="queryForm" inline class="query-form">
         <el-form-item label="关键词">
-          <el-input v-model="queryForm.keyword" placeholder="出库单号" clearable />
+          <el-input
+            v-model="queryForm.keyword"
+            class="query-keyword-input"
+            placeholder="出库单号"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="仓库">
+          <el-select
+            v-model="queryForm.warehouseId"
+            v-adaptive-select-width="['全部', ...warehouseList.map(warehouse => warehouse.warehouseName)]"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
+            <el-option
+              v-for="warehouse in warehouseList"
+              :key="warehouse.id"
+              :label="warehouse.warehouseName"
+              :value="warehouse.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryForm.status" placeholder="请选择" clearable>
+          <el-select
+            v-model="queryForm.status"
+            v-adaptive-select-width="['全部', '待确认', '已确认']"
+            placeholder="请选择"
+            clearable
+          >
+            <el-option label="全部" :value="-1" />
             <el-option label="待确认" :value="0" />
             <el-option label="已确认" :value="1" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="创建日期">
+          <el-date-picker
+            v-model="queryForm.createdDateRange"
+            type="daterange"
+            value-format="YYYY-MM-DD"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            style="width: 260px"
+            clearable
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">查询</el-button>
@@ -28,8 +66,7 @@
         </el-form-item>
       </el-form>
 
-      <!-- 出库单列表 -->
-      <el-table :data="stockOutList" border stripe v-loading="loading">
+      <el-table :data="stockOutList" border stripe v-loading="loading" class="data-table">
         <el-table-column prop="stockOutCode" label="出库单号" width="180" />
         <el-table-column prop="warehouseName" label="仓库" width="140">
           <template #default="{ row }">
@@ -43,9 +80,9 @@
             <el-tag v-else type="info">盘亏出库</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="applicationId" label="关联申请单" width="120">
+        <el-table-column prop="applicationNo" label="关联申请单" width="180">
           <template #default="{ row }">
-            {{ row.applicationId || '-' }}
+            {{ row.applicationNo || row.applicationId || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="totalAmount" label="总金额" width="120" align="right">
@@ -55,7 +92,7 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 0" type="warning">待确认</el-tag>
+            <el-tag v-if="isPendingStockOut(row.status)" type="warning">待确认</el-tag>
             <el-tag v-else type="success">已确认</el-tag>
           </template>
         </el-table-column>
@@ -69,7 +106,7 @@
           <template #default="{ row }">
             <el-button link type="primary" @click="handleView(row)">查看</el-button>
             <el-button
-              v-if="row.status === 0 && canConfirmStockOut"
+              v-if="isPendingStockOut(row.status) && canConfirmStockOut"
               link
               type="success"
               @click="handleConfirm(row)"
@@ -77,7 +114,7 @@
               确认出库
             </el-button>
             <el-button
-              v-if="row.status === 0 && canDeleteStockOut"
+              v-if="canDeleteStockOut"
               link
               type="danger"
               @click="handleDelete(row)"
@@ -88,7 +125,6 @@
         </el-table-column>
       </el-table>
 
-      <!-- 分页 -->
       <el-pagination
         v-model:current-page="queryForm.page"
         v-model:page-size="queryForm.size"
@@ -100,7 +136,6 @@
       />
     </el-card>
 
-    <!-- 出库单表单对话框 -->
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
@@ -112,6 +147,7 @@
         :model="stockOutForm"
         :rules="rules"
         label-width="100px"
+        class="stock-form"
       >
         <el-row :gutter="20">
           <el-col :span="12">
@@ -139,28 +175,38 @@
         <el-form-item label="备注">
           <el-input v-model="stockOutForm.remark" type="textarea" :rows="2" />
         </el-form-item>
-        
+
         <el-divider>出库明细</el-divider>
-        
+
         <el-button
           v-if="canCreateStockOut"
           type="primary"
           size="small"
           @click="handleAddItem"
-          style="margin-bottom: 10px"
+          class="add-item-btn"
         >
           添加药品
         </el-button>
-        
+
         <el-table :data="stockOutForm.items" border>
           <el-table-column label="药品编码" width="160">
             <template #default="{ row, $index }">
-              <el-input :model-value="getMaterialCodeDisplay(row)" placeholder="选择药品" readonly @click="selectMaterial($index)" />
+              <el-input
+                :model-value="getMaterialCodeDisplay(row)"
+                placeholder="选择药品"
+                readonly
+                @click="selectMaterial($index)"
+              />
             </template>
           </el-table-column>
           <el-table-column label="药品名称" width="180">
             <template #default="{ row, $index }">
-              <el-input :model-value="getMaterialNameDisplay(row)" placeholder="选择药品" readonly @click="selectMaterial($index)" />
+              <el-input
+                :model-value="getMaterialNameDisplay(row)"
+                placeholder="选择药品"
+                readonly
+                @click="selectMaterial($index)"
+              />
             </template>
           </el-table-column>
           <el-table-column label="数量" width="120">
@@ -175,38 +221,48 @@
           </el-table-column>
           <el-table-column label="操作" width="80" fixed="right">
             <template #default="{ $index }">
-              <el-button v-if="canCreateStockOut" link type="danger" @click="handleRemoveItem($index)">删除</el-button>
+              <el-button v-if="canCreateStockOut" link type="danger" @click="handleRemoveItem($index)">
+                删除
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button v-if="canCreateStockOut" type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
+        <el-button v-if="canCreateStockOut" type="primary" @click="handleSubmit" :loading="submitting">
+          确定
+        </el-button>
       </template>
     </el-dialog>
 
-    <!-- 查看详情对话框 -->
     <el-dialog v-model="viewDialogVisible" title="出库单详情" width="900px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="出库单号">{{ currentStockOut?.stockOutCode }}</el-descriptions-item>
-        <el-descriptions-item label="仓库">{{ currentStockOut ? getWarehouseDisplay(currentStockOut) : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="仓库">
+          {{ currentStockOut ? getWarehouseDisplay(currentStockOut) : '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="出库类型">
           <el-tag v-if="currentStockOut?.stockOutType === 1">领用出库</el-tag>
           <el-tag v-else-if="currentStockOut?.stockOutType === 2" type="warning">报废出库</el-tag>
           <el-tag v-else type="info">盘亏出库</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag v-if="currentStockOut?.status === 0" type="warning">待确认</el-tag>
+          <el-tag v-if="isPendingStockOut(currentStockOut?.status)" type="warning">待确认</el-tag>
           <el-tag v-else type="success">已确认</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ currentStockOut ? getCreatorDisplay(currentStockOut) : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">
+          {{ currentStockOut ? getCreatorDisplay(currentStockOut) : '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ currentStockOut?.createdTime }}</el-descriptions-item>
+        <el-descriptions-item label="关联申请单号">
+          {{ currentStockOut?.applicationNo || currentStockOut?.applicationId || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ currentStockOut?.remark || '-' }}</el-descriptions-item>
       </el-descriptions>
-      
+
       <el-divider>出库明细</el-divider>
-      
+
       <el-table :data="currentStockOut?.items" border>
         <el-table-column label="药品编码">
           <template #default="{ row }">
@@ -238,9 +294,9 @@
       </el-table>
     </el-dialog>
 
-    <!-- 药品选择器 -->
-    <MaterialSelector
+    <StockMaterialSelector
       v-model="materialSelectorVisible"
+      :warehouse-id="stockOutForm.warehouseId"
       @select="handleMaterialSelected"
     />
   </div>
@@ -250,9 +306,8 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { inventoryApi } from '@/api/inventory'
-import MaterialSelector from '@/components/MaterialSelector.vue'
+import StockMaterialSelector from '@/components/StockMaterialSelector.vue'
 import type { StockOut, StockOutDetail, StockOutForm, Warehouse } from '@/types/inventory'
-import type { Material } from '@/types/material'
 import { materialApi } from '@/api/material'
 import { useUserStore } from '@/stores/user'
 import { INVENTORY_STOCK_OUT_PERMISSIONS } from '@/constants/permissions'
@@ -274,15 +329,25 @@ const locationNameMap = ref<Record<string, string>>({})
 const currentStockOut = ref<StockOut>()
 const currentItemIndex = ref<number>()
 const total = ref(0)
+
 const canCreateStockOut = computed(() => userStore.hasPermission('inventory:stock-out:create'))
 const canConfirmStockOut = computed(() => userStore.hasPermission('inventory:stock-out:confirm'))
-const canDeleteStockOut = computed(() => userStore.hasPermission('inventory:stock-out:delete'))
+const canDeleteStockOut = computed(() => {
+  if (userStore.isAdmin()) {
+    return true
+  }
+  const username = (userStore.userInfo?.username ?? '').trim().toLowerCase()
+  return username === 'admin'
+})
 const canAccessStockOutPage = computed(() => userStore.hasAnyPermission([...INVENTORY_STOCK_OUT_PERMISSIONS]))
 const canReadMaterial = computed(() => userStore.hasPermission('material:list'))
+const DEFAULT_STOCK_OUT_WAREHOUSE_NAME = '2楼药品库'
 
 const queryForm = reactive({
   keyword: '',
-  status: undefined as number | undefined,
+  warehouseId: -1 as number,
+  status: -1 as number,
+  createdDateRange: [] as string[],
   page: 1,
   size: 10
 })
@@ -309,6 +374,8 @@ const formatDateTime = (dateTime?: string) => {
   return dateTime.replace('T', ' ').slice(0, 19)
 }
 
+const isPendingStockOut = (status?: number | string) => Number(status) === 0
+
 const rebuildWarehouseNameMap = () => {
   const map: Record<number, string> = {}
   warehouseList.value.forEach((warehouse) => {
@@ -317,9 +384,20 @@ const rebuildWarehouseNameMap = () => {
   warehouseNameMap.value = map
 }
 
-const getLocationCacheKey = (warehouseId?: number, locationId?: number) => {
-  return `${warehouseId ?? 0}_${locationId ?? 0}`
+const resolveDefaultWarehouseId = () => {
+  if (!warehouseList.value.length) {
+    return 0
+  }
+  const preferredWarehouse = warehouseList.value.find(
+    warehouse => (warehouse.warehouseName ?? '').trim() === DEFAULT_STOCK_OUT_WAREHOUSE_NAME
+  )
+  if (preferredWarehouse) {
+    return preferredWarehouse.id
+  }
+  return warehouseList.value[0].id
 }
+
+const getLocationCacheKey = (warehouseId?: number, locationId?: number) => `${warehouseId ?? 0}_${locationId ?? 0}`
 
 const resolveUserName = async (userId?: number) => {
   if (!userId) return ''
@@ -468,7 +546,19 @@ const loadStockOutList = async () => {
 
   loading.value = true
   try {
-    const res = await inventoryApi.getStockOutList(queryForm)
+    const [createdDateStart, createdDateEnd] = queryForm.createdDateRange
+    const createdTimeStart = createdDateStart ? `${createdDateStart} 00:00:00` : undefined
+    const createdTimeEnd = createdDateEnd ? `${createdDateEnd} 23:59:59` : undefined
+
+    const res = await inventoryApi.getStockOutList({
+      keyword: queryForm.keyword,
+      warehouseId: queryForm.warehouseId,
+      status: queryForm.status,
+      page: queryForm.page,
+      size: queryForm.size,
+      createdTimeStart,
+      createdTimeEnd
+    })
     stockOutList.value = await Promise.all(res.list.map(enrichStockOut))
     total.value = res.total
   } catch (error) {
@@ -482,6 +572,9 @@ const loadWarehouseList = async () => {
   try {
     warehouseList.value = await inventoryApi.getWarehouseList()
     rebuildWarehouseNameMap()
+    if (stockOutForm.warehouseId === 0) {
+      stockOutForm.warehouseId = resolveDefaultWarehouseId()
+    }
   } catch (error) {
     console.error('加载仓库列表失败:', error)
   }
@@ -496,7 +589,9 @@ const handleQuery = (trigger?: number | Event) => {
 
 const handleReset = () => {
   queryForm.keyword = ''
-  queryForm.status = undefined
+  queryForm.warehouseId = -1
+  queryForm.status = -1
+  queryForm.createdDateRange = []
   handleQuery()
 }
 
@@ -508,7 +603,7 @@ const handleAdd = () => {
 
   dialogTitle.value = '新增出库单'
   Object.assign(stockOutForm, {
-    warehouseId: 0,
+    warehouseId: resolveDefaultWarehouseId(),
     stockOutType: 1,
     remark: '',
     items: []
@@ -536,7 +631,6 @@ const handleRemoveItem = (index: number) => {
     ElMessage.warning('没有出库单新增权限')
     return
   }
-
   stockOutForm.items.splice(index, 1)
 }
 
@@ -545,17 +639,27 @@ const selectMaterial = (index: number) => {
   materialSelectorVisible.value = true
 }
 
-const handleMaterialSelected = (material: Material) => {
+const handleMaterialSelected = (material: {
+  materialId: number
+  materialCode: string
+  materialName: string
+  unit?: string
+  availableQuantity: number
+}) => {
   if (currentItemIndex.value !== undefined) {
     const item = stockOutForm.items[currentItemIndex.value]
-    item.materialId = material.id
-    const materialCode = material.materialCode || (material as any).code || ''
-    const materialName = material.materialName || (material as any).name || ''
+    item.materialId = material.materialId
+    const materialCode = material.materialCode || ''
+    const materialName = material.materialName || ''
     item.materialCode = materialCode
     item.materialName = materialName
-    item.unitPrice = material.unitPrice
+    if (item.quantity <= 0) {
+      item.quantity = material.availableQuantity > 0 ? 1 : 0
+    } else if (material.availableQuantity > 0 && item.quantity > material.availableQuantity) {
+      item.quantity = material.availableQuantity
+    }
 
-    materialInfoMap.value[material.id] = {
+    materialInfoMap.value[material.materialId] = {
       materialCode,
       materialName
     }
@@ -569,15 +673,14 @@ const handleSubmit = async () => {
   }
 
   if (!formRef.value) return
-  
   await formRef.value.validate(async (valid) => {
     if (!valid) return
-    
+
     if (stockOutForm.items.length === 0) {
       ElMessage.warning('请添加出库明细')
       return
     }
-    
+
     submitting.value = true
     try {
       await inventoryApi.createStockOut(stockOutForm)
@@ -613,7 +716,7 @@ const handleConfirm = async (row: StockOut) => {
     cancelButtonText: '取消',
     type: 'warning'
   })
-  
+
   try {
     await inventoryApi.confirmStockOut(row.id)
     ElMessage.success('确认出库成功')
@@ -628,13 +731,17 @@ const handleDelete = async (row: StockOut) => {
     ElMessage.warning('没有出库单删除权限')
     return
   }
+  if (!isPendingStockOut(row.status)) {
+    ElMessage.warning('仅待出库状态可删除')
+    return
+  }
 
   await ElMessageBox.confirm('确定要删除该出库单吗？', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
   })
-  
+
   try {
     await inventoryApi.deleteStockOut(row.id)
     ElMessage.success('删除成功')
@@ -656,17 +763,40 @@ onMounted(async () => {
 
 <style scoped>
 .stock-out-management {
-  padding: 20px;
+  gap: 16px;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.query-form {
+  margin-bottom: 10px;
+  padding: 14px 14px 2px;
+  border: 1px solid #e9f0fb;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.data-table :deep(.el-table__row:hover > td) {
+  background: #f7fbff !important;
+}
+
+.stock-form :deep(.el-divider__text) {
+  font-weight: 600;
+  color: #334155;
+}
+
+.add-item-btn {
+  margin-bottom: 10px;
+  border-radius: 8px;
 }
 
 .el-pagination {
-  margin-top: 20px;
+  margin-top: 16px;
   justify-content: flex-end;
 }
 </style>
