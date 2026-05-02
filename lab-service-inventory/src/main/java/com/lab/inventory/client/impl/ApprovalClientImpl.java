@@ -2,6 +2,7 @@ package com.lab.inventory.client.impl;
 
 import com.lab.inventory.client.ApprovalClient;
 import com.lab.inventory.dto.HazardousUsageRecordDTO;
+import com.lab.inventory.dto.LabUsageApplicationDTO;
 import com.lab.inventory.dto.MaterialApplicationDTO;
 import com.lab.inventory.dto.MaterialApplicationItemDTO;
 import lombok.extern.slf4j.Slf4j;
@@ -207,6 +208,48 @@ public class ApprovalClientImpl implements ApprovalClient {
         }
     }
 
+    @Override
+    public List<LabUsageApplicationDTO> getPendingLabUsageApprovals(Long approverId) {
+        log.info("查询用户的待审批实验室使用申请列表: approverId={}", approverId);
+
+        try {
+            String url = approvalServiceUrl + "/api/v1/lab-usage-applications/pending";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-UserId", String.valueOf(approverId));
+            headers.set("X-Username", "user" + approverId);
+            headers.set("X-RealName", "user" + approverId);
+            headers.set("X-Roles", "");
+            headers.set("X-Permissions", "lab-usage:approve");
+
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    Map.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Object data = response.getBody().get("data");
+                if (data instanceof List) {
+                    List<Map<String, Object>> dataList = (List<Map<String, Object>>) data;
+                    List<LabUsageApplicationDTO> result = new ArrayList<>();
+                    for (Map<String, Object> item : dataList) {
+                        result.add(parseLabUsageApplication(item));
+                    }
+                    log.info("查询用户的待审批实验室使用申请列表成功: approverId={}, count={}", approverId, result.size());
+                    return result;
+                }
+            }
+
+            log.warn("查询用户的待审批实验室使用申请列表失败，返回空列表: approverId={}", approverId);
+            return new ArrayList<>();
+        } catch (Exception e) {
+            log.error("调用审批服务查询待审批实验室使用申请列表失败: approverId={}", approverId, e);
+            return new ArrayList<>();
+        }
+    }
+
     private List<MaterialApplicationItemDTO> parseApplicationItems(Object itemsObject) {
         if (!(itemsObject instanceof List<?> itemList)) {
             return Collections.emptyList();
@@ -232,6 +275,27 @@ public class ApprovalClientImpl implements ApprovalClient {
         }
 
         return result;
+    }
+
+    private LabUsageApplicationDTO parseLabUsageApplication(Map<String, Object> item) {
+        LabUsageApplicationDTO dto = new LabUsageApplicationDTO();
+        dto.setId(parseLong(item.get("id")));
+        dto.setApplicationNo((String) item.get("applicationNo"));
+        dto.setApplicantId(parseLong(item.get("applicantId")));
+        dto.setApplicantName((String) item.get("applicantName"));
+        dto.setApplicantDept((String) item.get("applicantDept"));
+        dto.setLabRoomId(parseLong(item.get("labRoomId")));
+        dto.setLabRoomCode((String) item.get("labRoomCode"));
+        dto.setLabRoomName((String) item.get("labRoomName"));
+        dto.setUsageType(parseInteger(item.get("usageType")));
+        dto.setUsagePurpose((String) item.get("usagePurpose"));
+        dto.setProjectName((String) item.get("projectName"));
+        dto.setStartTime(parseLocalDateTime(item.get("startTime")));
+        dto.setEndTime(parseLocalDateTime(item.get("endTime")));
+        dto.setStatus(parseInteger(item.get("status")));
+        dto.setApprovalStatus(parseInteger(item.get("approvalStatus")));
+        dto.setCreatedTime(parseLocalDateTime(item.get("createdTime")));
+        return dto;
     }
 
     private Long parseLong(Object value) {
@@ -263,6 +327,17 @@ public class ApprovalClientImpl implements ApprovalClient {
         try {
             return new BigDecimal(value.toString());
         } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private java.time.LocalDateTime parseLocalDateTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return java.time.LocalDateTime.parse(value.toString());
+        } catch (Exception ex) {
             return null;
         }
     }

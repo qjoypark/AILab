@@ -32,7 +32,29 @@ export const INVENTORY_MODULE_PERMISSIONS = [
 
 export const APPROVAL_PERMISSIONS = ['application:list', 'application:approve'] as const
 
+export const APPROVAL_TODO_PERMISSIONS = ['application:approve', 'lab-usage:approve'] as const
+
 export const HAZARDOUS_PERMISSIONS = ['hazardous:usage:list', 'hazardous:ledger:view'] as const
 
 export const ALERT_PERMISSIONS = ['alert:list'] as const
 
+export const LAB_ROOM_PERMISSIONS = [
+  'lab-room:list',
+  'lab-room:create',
+  'lab-room:update',
+  'lab-room:delete',
+  'lab-room:manager:update'
+] as const
+
+export const LAB_USAGE_PERMISSIONS = [
+  'lab-usage:list',
+  'lab-usage:create',
+  'lab-usage:cancel',
+  'lab-usage:approve',
+  'lab-usage:schedule:view'
+] as const
+
+export const LAB_MODULE_PERMISSIONS = [
+  ...LAB_ROOM_PERMISSIONS,
+  ...LAB_USAGE_PERMISSIONS
+] as const

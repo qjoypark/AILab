@@ -26,6 +26,10 @@ logs/
 *.log
 *.log.*
 
+# Test caches
+.jqwik-database
+**/.jqwik-database
+
 # OS
 .DS_Store
 Thumbs.db

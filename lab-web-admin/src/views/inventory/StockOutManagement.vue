@@ -211,7 +211,7 @@
           </el-table-column>
           <el-table-column label="数量" width="120">
             <template #default="{ row }">
-              <el-input-number v-model="row.quantity" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number v-model="row.quantity" :min="0" :step="1" :step-strictly="true" :precision="0" style="width: 100%" />
             </template>
           </el-table-column>
           <el-table-column label="批次号" width="150">
@@ -292,6 +292,12 @@
         </el-table-column>
         <el-table-column prop="batchNumber" label="批次号" />
       </el-table>
+      <template #footer>
+        <el-button @click="viewDialogVisible = false">关闭</el-button>
+        <el-button type="primary" :loading="pdfGenerating" @click="handleGeneratePdf">
+          生成电子出库单PDF
+        </el-button>
+      </template>
     </el-dialog>
 
     <StockMaterialSelector
@@ -315,6 +321,7 @@ import { INVENTORY_STOCK_OUT_PERMISSIONS } from '@/constants/permissions'
 const userStore = useUserStore()
 const loading = ref(false)
 const submitting = ref(false)
+const pdfGenerating = ref(false)
 const dialogVisible = ref(false)
 const viewDialogVisible = ref(false)
 const materialSelectorVisible = ref(false)
@@ -375,6 +382,14 @@ const formatDateTime = (dateTime?: string) => {
 }
 
 const isPendingStockOut = (status?: number | string) => Number(status) === 0
+
+const normalizeIntegerQuantity = (value: unknown) => {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return 0
+  }
+  return Math.floor(numericValue)
+}
 
 const rebuildWarehouseNameMap = () => {
   const map: Record<number, string> = {}
@@ -467,12 +482,7 @@ const getWarehouseDisplay = (stockOut: StockOut) => {
 }
 
 const getCreatorDisplay = (stockOut: StockOut) => {
-  return (
-    stockOut.createdByName ||
-    (stockOut.createdBy ? userNameMap.value[stockOut.createdBy] : '') ||
-    (stockOut.operatorId ? userNameMap.value[stockOut.operatorId] : '') ||
-    formatIdLabel('用户', stockOut.createdBy ?? stockOut.operatorId)
-  )
+  return stockOut.receiverName || '-'
 }
 
 const getMaterialCodeDisplay = (detail: StockOutDetail) => {
@@ -653,11 +663,13 @@ const handleMaterialSelected = (material: {
     const materialName = material.materialName || ''
     item.materialCode = materialCode
     item.materialName = materialName
+    const availableQuantity = normalizeIntegerQuantity(material.availableQuantity)
     if (item.quantity <= 0) {
-      item.quantity = material.availableQuantity > 0 ? 1 : 0
-    } else if (material.availableQuantity > 0 && item.quantity > material.availableQuantity) {
-      item.quantity = material.availableQuantity
+      item.quantity = availableQuantity > 0 ? 1 : 0
+    } else if (availableQuantity > 0 && item.quantity > availableQuantity) {
+      item.quantity = availableQuantity
     }
+    item.quantity = normalizeIntegerQuantity(item.quantity)
 
     materialInfoMap.value[material.materialId] = {
       materialCode,
@@ -679,6 +691,14 @@ const handleSubmit = async () => {
     if (stockOutForm.items.length === 0) {
       ElMessage.warning('请添加出库明细')
       return
+    }
+
+    for (const item of stockOutForm.items) {
+      item.quantity = normalizeIntegerQuantity(item.quantity)
+      if (item.quantity <= 0) {
+        ElMessage.warning(`药品 ${item.materialName || item.materialId} 的出库数量必须大于 0`)
+        return
+      }
     }
 
     submitting.value = true
@@ -748,6 +768,30 @@ const handleDelete = async (row: StockOut) => {
     loadStockOutList()
   } catch (error) {
     console.error('删除失败:', error)
+  }
+}
+
+const handleGeneratePdf = async () => {
+  if (!currentStockOut.value?.id) {
+    ElMessage.warning('未找到出库单信息')
+    return
+  }
+
+  pdfGenerating.value = true
+  try {
+    const blob = await inventoryApi.exportStockOutPdf(currentStockOut.value.id)
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const code = currentStockOut.value.stockOutCode || String(currentStockOut.value.id)
+    link.href = url
+    link.download = `电子出库单_${code}.pdf`
+    link.click()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('电子出库单生成成功')
+  } catch (error) {
+    console.error('生成电子出库单失败:', error)
+  } finally {
+    pdfGenerating.value = false
   }
 }
 

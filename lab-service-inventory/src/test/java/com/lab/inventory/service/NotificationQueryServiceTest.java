@@ -237,6 +237,41 @@ class NotificationQueryServiceTest {
         verify(notificationMapper, times(1)).selectList(any(QueryWrapper.class));
         verify(notificationMapper, times(3)).updateById(any(Notification.class));
     }
+
+    @Test
+    void testDeleteNotification() {
+        Long notificationId = 1L;
+        Long userId = 1L;
+
+        Notification notification = new Notification();
+        notification.setId(notificationId);
+        notification.setReceiverId(userId);
+
+        when(notificationMapper.selectById(notificationId)).thenReturn(notification);
+        when(notificationMapper.deleteById(notificationId)).thenReturn(1);
+
+        notificationService.deleteNotification(notificationId, userId);
+
+        verify(notificationMapper, times(1)).selectById(notificationId);
+        verify(notificationMapper, times(1)).deleteById(notificationId);
+    }
+
+    @Test
+    void testDeleteNotificationUnauthorized() {
+        Long notificationId = 1L;
+        Long userId = 1L;
+
+        Notification notification = new Notification();
+        notification.setId(notificationId);
+        notification.setReceiverId(2L);
+
+        when(notificationMapper.selectById(notificationId)).thenReturn(notification);
+
+        assertThrows(BusinessException.class, () -> notificationService.deleteNotification(notificationId, userId));
+
+        verify(notificationMapper, times(1)).selectById(notificationId);
+        verify(notificationMapper, never()).deleteById(notificationId);
+    }
     
     @Test
     void testGetUnreadCount() {

@@ -17,11 +17,21 @@ public class ApprovalContext {
      * 申请单号
      */
     private String applicationNo;
+
+    /**
+     * 通用业务单号。第一阶段兼容现有命名，默认与applicationNo一致。
+     */
+    private String businessNo;
     
     /**
      * 申请单ID
      */
     private Long applicationId;
+
+    /**
+     * 通用业务单ID。第一阶段兼容现有命名，默认与applicationId一致。
+     */
+    private Long businessId;
     
     /**
      * 业务类型
@@ -47,4 +57,9 @@ public class ApprovalContext {
      * 是否包含管控物品
      */
     private Boolean hasControlledMaterial;
+
+    /**
+     * 实验室ID。实验室使用申请分配第一级管理人员时使用。
+     */
+    private Long labRoomId;
 }

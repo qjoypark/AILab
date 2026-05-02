@@ -78,6 +78,14 @@ const queryForm = reactive({
   keyword: ''
 })
 
+const normalizeIntegerQuantity = (value: unknown) => {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return 0
+  }
+  return Math.floor(numericValue)
+}
+
 watch(() => props.modelValue, async (value) => {
   visible.value = value
   if (value) {
@@ -151,7 +159,7 @@ const loadStockMaterials = async () => {
           materialCode: material.materialCode || `药品#${materialId}`,
           materialName: material.materialName || `药品#${materialId}`,
           unit: material.unit,
-          availableQuantity: aggregateMap.get(materialId)?.availableQuantity ?? 0
+          availableQuantity: normalizeIntegerQuantity(aggregateMap.get(materialId)?.availableQuantity)
         } as StockMaterialSelection
       } catch {
         return {
@@ -159,7 +167,7 @@ const loadStockMaterials = async () => {
           materialCode: `药品#${materialId}`,
           materialName: `药品#${materialId}`,
           unit: '',
-          availableQuantity: aggregateMap.get(materialId)?.availableQuantity ?? 0
+          availableQuantity: normalizeIntegerQuantity(aggregateMap.get(materialId)?.availableQuantity)
         } as StockMaterialSelection
       }
     }))

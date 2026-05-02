@@ -43,6 +43,10 @@ export const notificationApi = {
     return request.post('/notifications/read-all', null, { params: { userId } })
   },
 
+  deleteNotification(id: number, userId: number) {
+    return request.delete(`/notifications/${id}`, { params: { userId } })
+  },
+
   getUnreadCount(userId: number) {
     return request.get<any, number>('/notifications/unread-count', { params: { userId } })
   }

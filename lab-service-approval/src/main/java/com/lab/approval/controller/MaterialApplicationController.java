@@ -43,7 +43,7 @@ public class MaterialApplicationController {
         Long applicationId = applicationService.createApplication(
                 request,
                 currentUser.userId(),
-                currentUser.username(),
+                currentUser.displayName(),
                 currentUser.department()
         );
         return Result.success(applicationId);
@@ -118,7 +118,7 @@ public class MaterialApplicationController {
     ) {
         RequestUserContextResolver.CurrentUser currentUser = requestUserContextResolver.resolve(httpRequest);
         log.info("审批申请: id={}, userId={}, result={}", id, currentUser.userId(), request.getApprovalResult());
-        applicationService.processApproval(id, request, currentUser.userId(), currentUser.username());
+        applicationService.processApproval(id, request, currentUser.userId(), currentUser.displayName());
         return Result.success();
     }
 

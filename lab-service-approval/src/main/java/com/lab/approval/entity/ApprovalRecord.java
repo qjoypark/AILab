@@ -14,6 +14,16 @@ public class ApprovalRecord {
     
     @TableId(type = IdType.AUTO)
     private Long id;
+
+    /**
+     * 业务类型: 1-普通药品领用, 2-危化品领用, 3-实验室使用申请
+     */
+    private Integer businessType;
+
+    /**
+     * 业务单号
+     */
+    private String businessNo;
     
     /**
      * 申请单ID

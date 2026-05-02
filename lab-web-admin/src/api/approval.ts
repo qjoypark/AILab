@@ -25,12 +25,16 @@ const mapApplicationStatus = (status?: number) => {
 const roleDisplayNameMap: Record<string, string> = {
   ADMIN: '系统管理员',
   CENTER_ADMIN: '实验中心主任',
+  CENTER_DIRECTOR: '中心主任',
   LAB_MANAGER: '实验室负责人',
+  LAB_ROOM_MANAGER: '实验室管理人员',
+  DEPUTY_DEAN: '分管院长',
+  DEAN: '院长',
   TEACHER: '教师',
   STUDENT: '学生',
   EQUIPMENT_ADMIN: '设备管理员',
-  '001': '学院院长',
-  '002': '学院副院长',
+  '001': '院长',
+  '002': '分管院长',
   '003': '实验中心主任',
   '005': '实验中心管理人员',
   '006': '教师',
@@ -156,8 +160,12 @@ export const approvalApi = {
     page?: number
     size?: number
   }) {
+    const mappedParams = {
+      ...params,
+      status: params.status === undefined || params.status === -1 ? undefined : params.status
+    }
     return request
-      .get<any, PageResult<any>>('/hazardous/usage-records', { params })
+      .get<any, PageResult<any>>('/hazardous/usage-records', { params: mappedParams })
       .then(result => toListResult<HazardousUsageRecord>(result, item => ({
         ...item,
         receiveDate: item.receiveDate ?? item.usageDate

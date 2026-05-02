@@ -22,6 +22,10 @@ public class ApproverAssignmentServiceImpl implements ApproverAssignmentService 
 
     private static final String ROLE_CENTER_ADMIN = "CENTER_ADMIN";
     private static final String ROLE_CENTER_ADMIN_ALIAS = "003";
+    private static final String ROLE_LAB_ROOM_MANAGER = "LAB_ROOM_MANAGER";
+    private static final String ROLE_CENTER_DIRECTOR = "CENTER_DIRECTOR";
+    private static final String ROLE_DEPUTY_DEAN = "DEPUTY_DEAN";
+    private static final String ROLE_DEAN = "DEAN";
 
     private final ApproverUserMapper approverUserMapper;
 
@@ -40,6 +44,12 @@ public class ApproverAssignmentServiceImpl implements ApproverAssignmentService 
         String effectiveRoleCode = resolveEffectiveRoleCode(approverRole, context);
         if (effectiveRoleCode == null || effectiveRoleCode.isBlank()) {
             return Collections.emptyList();
+        }
+        if (ROLE_LAB_ROOM_MANAGER.equals(effectiveRoleCode) && context != null && context.getLabRoomId() != null) {
+            List<ApproverCandidateDTO> managers = approverUserMapper.selectLabRoomManagers(context.getLabRoomId());
+            if (managers != null && !managers.isEmpty()) {
+                return managers;
+            }
         }
         List<String> roleCodes = buildRoleCodeCandidates(effectiveRoleCode);
         List<ApproverCandidateDTO> candidates = approverUserMapper.selectApproversByRoleCodes(roleCodes);
@@ -66,6 +76,16 @@ public class ApproverAssignmentServiceImpl implements ApproverAssignmentService 
         roleCodes.add(effectiveRoleCode);
         if (ROLE_CENTER_ADMIN.equals(effectiveRoleCode)) {
             roleCodes.add(ROLE_CENTER_ADMIN_ALIAS);
+        } else if (ROLE_LAB_ROOM_MANAGER.equals(effectiveRoleCode)) {
+            roleCodes.add("005");
+            roleCodes.add("LAB_MANAGER");
+        } else if (ROLE_CENTER_DIRECTOR.equals(effectiveRoleCode)) {
+            roleCodes.add("003");
+            roleCodes.add(ROLE_CENTER_ADMIN);
+        } else if (ROLE_DEPUTY_DEAN.equals(effectiveRoleCode)) {
+            roleCodes.add("002");
+        } else if (ROLE_DEAN.equals(effectiveRoleCode)) {
+            roleCodes.add("001");
         }
         return roleCodes;
     }

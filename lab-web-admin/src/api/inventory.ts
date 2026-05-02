@@ -22,6 +22,20 @@ interface PageResult<T> {
   total?: number
 }
 
+interface StockInImportPreview {
+  warehouseId: number
+  stockInType: number
+  remark?: string
+  items: Array<{
+    materialId: number
+    quantity: number
+    unitPrice?: number
+    batchNumber?: string
+    productionDate?: string
+    expiryDate?: string
+  }>
+}
+
 const toListResult = <T>(result: PageResult<T>, mapper?: (item: any) => T) => {
   const list = (result?.records ?? result?.list ?? []).map(item => mapper ? mapper(item) : item)
   return {
@@ -151,6 +165,34 @@ export const inventoryApi = {
     return request.post<any, StockIn>('/inventory/stock-in', payload).then(mapStockIn)
   },
 
+  importStockInExcel(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post<any, any>('/inventory/stock-in/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }).then((data): StockInImportPreview => ({
+      warehouseId: data.warehouseId,
+      stockInType: data.inType,
+      remark: data.remark,
+      items: (data.items ?? []).map((item: any) => ({
+        materialId: item.materialId,
+        quantity: Number(item.quantity ?? 0),
+        unitPrice: item.unitPrice == null ? undefined : Number(item.unitPrice),
+        batchNumber: item.batchNumber,
+        productionDate: item.productionDate,
+        expiryDate: item.expireDate
+      }))
+    }))
+  },
+
+  downloadStockInImportTemplate() {
+    return request.get<any, Blob>('/inventory/stock-in/import/template', {
+      responseType: 'blob'
+    })
+  },
+
   confirmStockIn(id: number) {
     return request.post(`/inventory/stock-in/${id}/confirm`)
   },
@@ -182,6 +224,12 @@ export const inventoryApi = {
 
   getStockOutById(id: number) {
     return request.get<any, StockOut>(`/inventory/stock-out/${id}`).then(mapStockOut)
+  },
+
+  exportStockOutPdf(id: number) {
+    return request.get<any, Blob>(`/inventory/stock-out/${id}/pdf`, {
+      responseType: 'blob'
+    })
   },
 
   createStockOut(data: StockOutForm) {

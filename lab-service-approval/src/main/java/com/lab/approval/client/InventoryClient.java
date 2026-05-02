@@ -43,6 +43,13 @@ public interface InventoryClient {
      * @return 出库单信息列表
      */
     List<StockOutOrderInfoDTO> getStockOutOrdersByApplicationId(Long applicationId);
+
+    boolean sendNotification(Long receiverId,
+                             Integer notificationType,
+                             String title,
+                             String content,
+                             String businessType,
+                             Long businessId);
     
     /**
      * 危化品归还入库

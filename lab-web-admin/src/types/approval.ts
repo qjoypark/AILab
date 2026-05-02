@@ -88,6 +88,8 @@ export interface ApprovalRequest {
 
 export interface HazardousUsageRecord {
   id: number
+  applicationId?: number
+  applicationNo?: string
   materialId: number
   materialName?: string
   userId: number

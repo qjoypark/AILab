@@ -20,6 +20,7 @@ public interface HazardousUsageRecordService {
             int size,
             Integer status,
             String keyword,
+            Long userId,
             LocalDate startDate,
             LocalDate endDate
     );

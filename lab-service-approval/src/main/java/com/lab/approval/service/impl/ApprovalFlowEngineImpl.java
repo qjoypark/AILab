@@ -40,7 +40,7 @@ public class ApprovalFlowEngineImpl implements ApprovalFlowEngine {
                 applicationId, applicationNo, context);
         
         // 1. 根据业务类型获取流程配置
-        ApprovalFlowConfig flowConfig = getFlowConfigByBusinessType(context.getApplicationType());
+        ApprovalFlowConfig flowConfig = getFlowConfigByBusinessType(resolveBusinessType(context));
         if (flowConfig == null) {
             throw new BusinessException("未找到对应的审批流程配置");
         }
@@ -87,7 +87,10 @@ public class ApprovalFlowEngineImpl implements ApprovalFlowEngine {
         // 4. 记录审批结果
         ApprovalRecord record = new ApprovalRecord();
         record.setApplicationId(request.getApplicationId());
-        record.setApplicationNo(getApplicationNo(request.getApplicationId()));
+        String businessNo = request.getBusinessNo() == null ? getApplicationNo(request.getApplicationId()) : request.getBusinessNo();
+        record.setApplicationNo(businessNo);
+        record.setBusinessType(request.getBusinessType() == null ? 1 : request.getBusinessType());
+        record.setBusinessNo(businessNo);
         record.setApproverId(approverId);
         record.setApproverName(approverName);
         record.setApprovalLevel(currentLevel);
@@ -158,6 +161,19 @@ public class ApprovalFlowEngineImpl implements ApprovalFlowEngine {
                .eq(ApprovalFlowConfig::getStatus, 1)
                .last("LIMIT 1");
         return flowConfigMapper.selectOne(wrapper);
+    }
+
+    private Integer resolveBusinessType(ApprovalContext context) {
+        if (context == null) {
+            return 1;
+        }
+        if (context.getBusinessType() != null) {
+            return context.getBusinessType();
+        }
+        if (context.getApplicationType() != null) {
+            return context.getApplicationType();
+        }
+        return 1;
     }
     
     /**

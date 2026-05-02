@@ -31,8 +31,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -44,6 +46,8 @@ import java.util.stream.Collectors;
 public class MaterialApplicationServiceImpl implements MaterialApplicationService {
 
     private static final String ROLE_CENTER_ADMIN = "CENTER_ADMIN";
+    private static final int NOTIFICATION_TYPE_APPROVAL = 1;
+    private static final String BUSINESS_TYPE_MATERIAL_APPLICATION = "MATERIAL_APPLICATION";
 
     private final MaterialApplicationMapper applicationMapper;
     private final MaterialApplicationItemMapper itemMapper;
@@ -162,6 +166,8 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
         context.setApplicationType(request.getApplicationType());
         context.setApplicationId(application.getId());
         context.setApplicationNo(application.getApplicationNo());
+        context.setBusinessId(application.getId());
+        context.setBusinessNo(application.getApplicationNo());
         context.setApplicantId(applicantId);
         context.setApplicantDept(applicantDept);
         
@@ -176,6 +182,11 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
         application.setApprovalStatus(1); // 瀹℃壒涓?
         application.setCurrentApproverId(firstApproverId);
         applicationMapper.updateById(application);
+        notifyCurrentMaterialApprovers(
+                application,
+                "药品使用申请待审批",
+                "申请单 " + application.getApplicationNo() + " 由 " + application.getApplicantName() + " 提交，等待您审批。"
+        );
         
         log.info("棰嗙敤鐢宠鍒涘缓鎴愬姛: applicationId={}, applicationNo={}", 
             application.getId(), application.getApplicationNo());
@@ -304,7 +315,7 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
         List<MaterialApplicationItem> items = itemMapper.selectList(itemWrapper);
         
         // 3. 鏌ヨ瀹℃壒璁板綍
-        List<ApprovalRecord> approvalRecords = approvalWorkflowService.getApprovalHistory(id);
+        List<ApprovalRecord> approvalRecords = approvalWorkflowService.getApprovalHistory(application.getApplicationType(), id);
         
         // 4. 缁勮DTO
         MaterialApplicationDTO dto = new MaterialApplicationDTO();
@@ -458,7 +469,7 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
         }
         
         // 3. 鑾峰彇褰撳墠瀹℃壒灞傜骇
-        List<ApprovalRecord> existingRecords = approvalWorkflowService.getApprovalHistory(id);
+        List<ApprovalRecord> existingRecords = approvalWorkflowService.getApprovalHistory(application.getApplicationType(), id);
         int currentLevel = existingRecords.size() + 1;
 
         // 4. 鏍￠獙瀹℃壒鏉冮檺锛氭寜褰撳墠瀹℃壒瑙掕壊鍊欓€変汉鍖归厤锛堟敮鎸佸浜猴級
@@ -504,6 +515,8 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
         ApprovalRecord record = new ApprovalRecord();
         record.setApplicationId(id);
         record.setApplicationNo(application.getApplicationNo());
+        record.setBusinessType(application.getApplicationType());
+        record.setBusinessNo(application.getApplicationNo());
         record.setApproverId(approverId);
         record.setApproverName(approverName);
         record.setApprovalLevel(currentLevel);
@@ -552,6 +565,11 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
             application.setStatus(2); // 瀹℃壒涓?
             application.setUpdatedTime(LocalDateTime.now());
             applicationMapper.updateById(application);
+            notifyCurrentMaterialApprovers(
+                    application,
+                    "药品使用申请待审批",
+                    "申请单 " + application.getApplicationNo() + " 已进入下一审批节点，等待您审批。"
+            );
             
             // TODO: 鍙戦€佸鎵归€氱煡缁欎笅涓€绾у鎵逛汉
             log.info("娴佽浆鍒颁笅涓€绾у鎵? applicationId={}, nextLevel={}, nextApproverId={}", 
@@ -565,6 +583,11 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
             applicationMapper.updateById(application);
 
             triggerAutoCreateStockOutOrder(application.getId());
+            notifyApplicant(
+                    application,
+                    "药品使用申请已通过",
+                    "您的申请单 " + application.getApplicationNo() + " 已审批通过。"
+            );
 
             // TODO: 审批通过后通知申请人
             log.info("瀹℃壒娴佺▼瀹屾垚: applicationId={}", application.getId());
@@ -575,6 +598,11 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
      * 澶勭悊瀹℃壒鎷掔粷
      */
     private void handleApprovalReject(MaterialApplication application) {
+        notifyApplicant(
+                application,
+                "药品使用申请被驳回",
+                "您的申请单 " + application.getApplicationNo() + " 未通过审批，请查看审批意见。"
+        );
         log.info("澶勭悊瀹℃壒鎷掔粷: applicationId={}", application.getId());
         
         application.setApprovalStatus(3); // 瀹℃壒鎷掔粷
@@ -665,6 +693,76 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
      * 鐢熸垚鐢宠鍗曞彿
      * 鏍煎紡: APP + yyyyMMdd + 6浣嶅簭鍙?
      */
+    private void notifyCurrentMaterialApprovers(MaterialApplication application, String title, String content) {
+        if (application == null || application.getId() == null) {
+            return;
+        }
+        Set<Long> receiverIds = new LinkedHashSet<>();
+        if (application.getCurrentApproverId() != null) {
+            receiverIds.add(application.getCurrentApproverId());
+        }
+        receiverIds.addAll(resolveCurrentApproverCandidates(application).stream()
+                .map(ApproverCandidateDTO::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList()));
+        sendApprovalNotificationsAfterCommit(receiverIds, title, content, BUSINESS_TYPE_MATERIAL_APPLICATION, application.getId());
+    }
+
+    private void notifyApplicant(MaterialApplication application, String title, String content) {
+        if (application == null || application.getApplicantId() == null) {
+            return;
+        }
+        sendApprovalNotificationAfterCommit(
+                application.getApplicantId(),
+                title,
+                content,
+                BUSINESS_TYPE_MATERIAL_APPLICATION,
+                application.getId()
+        );
+    }
+
+    private void sendApprovalNotificationsAfterCommit(Set<Long> receiverIds,
+                                                      String title,
+                                                      String content,
+                                                      String businessType,
+                                                      Long businessId) {
+        if (receiverIds == null || receiverIds.isEmpty()) {
+            return;
+        }
+        for (Long receiverId : receiverIds) {
+            sendApprovalNotificationAfterCommit(receiverId, title, content, businessType, businessId);
+        }
+    }
+
+    private void sendApprovalNotificationAfterCommit(Long receiverId,
+                                                     String title,
+                                                     String content,
+                                                     String businessType,
+                                                     Long businessId) {
+        if (receiverId == null) {
+            return;
+        }
+        Runnable task = () -> inventoryClient.sendNotification(
+                receiverId,
+                NOTIFICATION_TYPE_APPROVAL,
+                title,
+                content,
+                businessType,
+                businessId
+        );
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+            return;
+        }
+        task.run();
+    }
+
     private String generateApplicationNo() {
         String dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String randomStr = String.format("%06d", (int)(Math.random() * 1000000));
@@ -734,7 +832,7 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
         if (application.getStatus() == null || (application.getStatus() != 1 && application.getStatus() != 2)) {
             return null;
         }
-        List<ApprovalRecord> records = approvalWorkflowService.getApprovalHistory(application.getId());
+        List<ApprovalRecord> records = approvalWorkflowService.getApprovalHistory(application.getApplicationType(), application.getId());
         int currentLevel = records.size() + 1;
         return resolveApproverRoleByLevel(
                 application.getApplicationType(),
@@ -784,6 +882,8 @@ public class MaterialApplicationServiceImpl implements MaterialApplicationServic
             context.setApplicationType(application.getApplicationType());
             context.setApplicationId(application.getId());
             context.setApplicationNo(application.getApplicationNo());
+            context.setBusinessId(application.getId());
+            context.setBusinessNo(application.getApplicationNo());
             context.setApplicantId(application.getApplicantId());
             context.setApplicantDept(application.getApplicantDept());
         }

@@ -44,7 +44,9 @@
           <template #header>
             <div class="card-header">
               <span>待办事项</span>
-              <el-button class="header-link-btn" link @click="go('/approval/todo')">查看全部</el-button>
+              <el-button v-if="todoHeaderLink" class="header-link-btn" link @click="go(todoHeaderLink.path)">
+                {{ todoHeaderLink.text }}
+              </el-button>
             </div>
           </template>
 
@@ -113,9 +115,14 @@ import { materialApi } from '@/api/material'
 import { dashboardApi } from '@/api/dashboard'
 import { notificationApi } from '@/api/notification'
 import { alertApi } from '@/api/alert'
+import { approvalApi } from '@/api/approval'
+import { labApi } from '@/api/lab'
+import type { MaterialApplication } from '@/types/approval'
+import type { LabUsageApplication } from '@/types/lab'
 import {
   ALERT_PERMISSIONS,
   APPROVAL_PERMISSIONS,
+  APPROVAL_TODO_PERMISSIONS,
   INVENTORY_STOCK_IN_PERMISSIONS,
   INVENTORY_STOCK_OUT_PERMISSIONS,
   INVENTORY_STOCK_PERMISSIONS,
@@ -181,7 +188,7 @@ const quickLinks: QuickLink[] = [
   { path: '/inventory/stock-in', text: '入库管理', icon: 'Upload', color: '#f59e0b', permissions: INVENTORY_STOCK_IN_PERMISSIONS },
   { path: '/inventory/stock-out', text: '出库管理', icon: 'Download', color: '#ef4444', permissions: INVENTORY_STOCK_OUT_PERMISSIONS },
   { path: '/applications', text: '领用申请', icon: 'Document', color: '#6366f1', permissions: APPROVAL_PERMISSIONS },
-  { path: '/approval/todo', text: '申请审批', icon: 'CircleCheck', color: '#0ea5e9', permissions: APPROVAL_PERMISSIONS },
+  { path: '/approval/todo', text: '申请审批', icon: 'CircleCheck', color: '#0ea5e9', permissions: APPROVAL_TODO_PERMISSIONS },
   { path: '/alerts', text: '预警管理', icon: 'Bell', color: '#f97316', permissions: ALERT_PERMISSIONS },
   { path: '/notifications', text: '消息中心', icon: 'Message', color: '#64748b' }
 ]
@@ -193,6 +200,44 @@ const visibleQuickLinks = computed(() =>
 const todoList = ref<Array<{ title: string; time: string }>>([])
 const messageList = ref<Array<{ title: string; time: string; isRead: number }>>([])
 const alertList = ref<Array<{ alertType: number; alertTitle: string; alertContent: string; alertTime: string }>>([])
+
+const canViewMaterialStats = computed(() => userStore.hasAnyPermission([...MATERIAL_PERMISSIONS]))
+const canViewStockStats = computed(() => userStore.hasAnyPermission([...INVENTORY_STOCK_PERMISSIONS]))
+const canViewMaterialApprovalTodos = computed(() => userStore.hasAnyPermission(['application:approve']))
+const canViewLabApprovalTodos = computed(() => userStore.hasAnyPermission(['lab-usage:approve']))
+const canViewApprovalTodos = computed(() => userStore.hasAnyPermission([...APPROVAL_TODO_PERMISSIONS]))
+const canViewAlerts = computed(() => userStore.hasAnyPermission([...ALERT_PERMISSIONS]))
+const todoHeaderLink = computed(() => {
+  if (canViewApprovalTodos.value) {
+    return { path: '/approval/todo', text: '查看审批' }
+  }
+  if (canViewAlerts.value) {
+    return { path: '/alerts', text: '查看预警' }
+  }
+  return null
+})
+
+const resolveSafely = async <T,>(promise: Promise<T>, fallback: T, label: string): Promise<T> => {
+  try {
+    return await promise
+  } catch (error) {
+    console.warn(`加载首页${label}失败`, error)
+    return fallback
+  }
+}
+
+const mapMaterialTodo = (item: MaterialApplication) => {
+  const typeName = item.applicationType === 2 ? '危化品领用' : '药品领用'
+  return {
+    title: `[${typeName}] ${item.applicantName || '-'} 提交的申请`,
+    time: formatDateTime(item.createdTime)
+  }
+}
+
+const mapLabTodo = (item: LabUsageApplication) => ({
+  title: `[实验室使用] ${item.applicantName || '-'} 提交的申请`,
+  time: formatDateTime(item.createdTime)
+})
 
 const formatDateTime = (dateTime?: string) => {
   if (!dateTime) {
@@ -221,25 +266,45 @@ const loadDashboardData = async () => {
   }
 
   try {
-    const [materialResult, stockSummary, todoResult, notificationResult, alertResult] = await Promise.all([
-      materialApi.getMaterialList({ page: 1, size: 1 }),
-      dashboardApi.getStockSummary(),
-      dashboardApi.getTodoList(userId),
-      notificationApi.queryNotifications({ receiverId: userId, page: 1, size: 5 }),
-      alertApi.getAlertList({ page: 1, size: 5, status: 1 })
+    const [materialResult, stockSummary, materialTodoItems, labTodoItems, notificationResult, alertResult] = await Promise.all([
+      canViewMaterialStats.value
+        ? resolveSafely(materialApi.getMaterialList({ page: 1, size: 1 }), { list: [], total: 0 }, '药品统计')
+        : Promise.resolve({ list: [], total: 0 }),
+      canViewStockStats.value
+        ? resolveSafely(dashboardApi.getStockSummary(), { totalValue: 0 }, '库存统计')
+        : Promise.resolve({ totalValue: 0 }),
+      canViewMaterialApprovalTodos.value
+        ? resolveSafely(approvalApi.getTodoList(), [], '药品待审批')
+        : Promise.resolve([]),
+      canViewLabApprovalTodos.value
+        ? resolveSafely(labApi.getPendingLabUsageApplications(), [], '实验室待审批')
+        : Promise.resolve([]),
+      resolveSafely(notificationApi.queryNotifications({ receiverId: userId, page: 1, size: 5 }), { list: [], total: 0 }, '最新消息'),
+      canViewAlerts.value
+        ? resolveSafely(alertApi.getAlertList({ page: 1, size: 5, status: 1 }), { list: [], total: 0 }, '预警提醒')
+        : Promise.resolve({ list: [], total: 0 })
     ])
 
     statistics.value = {
-      totalMaterials: materialResult.total ?? 0,
-      totalStockValue: Number(stockSummary.totalValue ?? 0),
-      pendingApprovals: todoResult.approvalCount ?? 0,
-      alertCount: todoResult.alertCount ?? alertResult.total ?? 0
+      totalMaterials: canViewMaterialStats.value ? materialResult.total ?? 0 : 0,
+      totalStockValue: canViewStockStats.value ? Number(stockSummary.totalValue ?? 0) : 0,
+      pendingApprovals: canViewApprovalTodos.value ? materialTodoItems.length + labTodoItems.length : 0,
+      alertCount: canViewAlerts.value ? alertResult.total ?? 0 : 0
     }
 
-    todoList.value = (todoResult.list ?? []).slice(0, 5).map(item => ({
-      title: item.title,
-      time: formatDateTime(item.deadline || item.createdTime)
-    }))
+    const approvalTodos = [
+      ...materialTodoItems.map(mapMaterialTodo),
+      ...labTodoItems.map(mapLabTodo)
+    ].sort((a, b) => String(b.time ?? '').localeCompare(String(a.time ?? '')))
+
+    const alertTodos = canViewAlerts.value
+      ? (alertResult.list ?? []).map(item => ({
+          title: `[预警] ${item.alertTitle}`,
+          time: formatDateTime(item.alertTime)
+        }))
+      : []
+
+    todoList.value = [...approvalTodos, ...alertTodos].slice(0, 5)
 
     messageList.value = (notificationResult.list ?? []).slice(0, 5).map(item => ({
       title: item.title,
@@ -247,12 +312,14 @@ const loadDashboardData = async () => {
       isRead: item.isRead
     }))
 
-    alertList.value = (alertResult.list ?? []).slice(0, 5).map(item => ({
-      alertType: item.alertType,
-      alertTitle: item.alertTitle,
-      alertContent: item.alertContent,
-      alertTime: formatDateTime(item.alertTime)
-    }))
+    alertList.value = canViewAlerts.value
+      ? (alertResult.list ?? []).slice(0, 5).map(item => ({
+          alertType: item.alertType,
+          alertTitle: item.alertTitle,
+          alertContent: item.alertContent,
+          alertTime: formatDateTime(item.alertTime)
+        }))
+      : []
   } catch (error) {
     console.error('加载仪表盘数据失败:', error)
   }

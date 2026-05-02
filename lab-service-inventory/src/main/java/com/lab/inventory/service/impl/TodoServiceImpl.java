@@ -2,6 +2,7 @@ package com.lab.inventory.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lab.inventory.client.ApprovalClient;
+import com.lab.inventory.dto.LabUsageApplicationDTO;
 import com.lab.inventory.dto.MaterialApplicationDTO;
 import com.lab.inventory.dto.TodoItemDTO;
 import com.lab.inventory.dto.TodoListDTO;
@@ -40,8 +41,10 @@ public class TodoServiceImpl implements TodoService {
         
         List<TodoItemDTO> todoItems = new ArrayList<>();
         
-        // 1. 查询待审批申请
-        List<TodoItemDTO> approvalItems = getPendingApprovalItems(userId);
+        // 1. 查询待审批申请（药品领用 + 实验室使用）
+        List<TodoItemDTO> approvalItems = new ArrayList<>();
+        approvalItems.addAll(getPendingApprovalItems(userId));
+        approvalItems.addAll(getPendingLabUsageApprovalItems(userId));
         todoItems.addAll(approvalItems);
         
         // 2. 查询待处理预警
@@ -82,12 +85,39 @@ public class TodoServiceImpl implements TodoService {
         try {
             // 调用审批服务查询当前用户的待审批申请
             List<MaterialApplicationDTO> pendingApprovals = approvalClient.getPendingApprovals(userId);
+            if (pendingApprovals == null) {
+                return new ArrayList<>();
+            }
             
             return pendingApprovals.stream()
                     .map(this::convertApprovalToTodoItem)
                     .collect(Collectors.toList());
         } catch (Exception e) {
             log.error("查询待审批申请失败: userId={}", userId, e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 获取待审批实验室使用申请待办事项
+     *
+     * @param userId 用户ID
+     * @return 待审批实验室使用申请列表
+     */
+    private List<TodoItemDTO> getPendingLabUsageApprovalItems(Long userId) {
+        log.debug("查询待审批实验室使用申请: userId={}", userId);
+
+        try {
+            List<LabUsageApplicationDTO> pendingApprovals = approvalClient.getPendingLabUsageApprovals(userId);
+            if (pendingApprovals == null) {
+                return new ArrayList<>();
+            }
+
+            return pendingApprovals.stream()
+                    .map(this::convertLabUsageApprovalToTodoItem)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("查询待审批实验室使用申请失败: userId={}", userId, e);
             return new ArrayList<>();
         }
     }
@@ -152,6 +182,41 @@ public class TodoServiceImpl implements TodoService {
                 .priority(priority)
                 .priorityDesc(getPriorityDesc(priority))
                 .deadline(deadline)
+                .createdTime(application.getCreatedTime())
+                .applicantName(application.getApplicantName())
+                .applicantDept(application.getApplicantDept())
+                .build();
+    }
+
+    /**
+     * 将实验室使用申请转换为待办事项
+     *
+     * @param application 实验室使用申请
+     * @return 待办事项
+     */
+    private TodoItemDTO convertLabUsageApprovalToTodoItem(LabUsageApplicationDTO application) {
+        String roomName = application.getLabRoomName();
+        if (application.getLabRoomCode() != null && !application.getLabRoomCode().isBlank()) {
+            roomName = (roomName == null || roomName.isBlank())
+                    ? application.getLabRoomCode()
+                    : roomName + "（" + application.getLabRoomCode() + "）";
+        }
+        String title = String.format("[实验室使用] %s 提交的实验室使用申请", application.getApplicantName());
+        String content = String.format("申请单号: %s, 实验室: %s, 用途: %s",
+                application.getApplicationNo(),
+                roomName == null || roomName.isBlank() ? "-" : roomName,
+                application.getUsagePurpose());
+
+        return TodoItemDTO.builder()
+                .type("LAB_APPROVAL")
+                .typeDesc("实验室待审批")
+                .businessId(application.getId())
+                .businessNo(application.getApplicationNo())
+                .title(title)
+                .content(content)
+                .priority(2)
+                .priorityDesc(getPriorityDesc(2))
+                .deadline(application.getStartTime())
                 .createdTime(application.getCreatedTime())
                 .applicantName(application.getApplicantName())
                 .applicantDept(application.getApplicantDept())

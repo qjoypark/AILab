@@ -29,6 +29,38 @@ public class PermissionBootstrapRunner implements ApplicationRunner {
             "application:approve"
     );
 
+    private static final List<String> LAB_USAGE_APPLICANT_PERMISSION_CODES = List.of(
+            "module:lab",
+            "lab-room:list",
+            "lab-usage:list",
+            "lab-usage:create",
+            "lab-usage:cancel",
+            "lab-usage:schedule:view"
+    );
+
+    private static final List<String> LAB_USAGE_APPROVER_PERMISSION_CODES = List.of(
+            "module:lab",
+            "lab-room:list",
+            "lab-usage:list",
+            "lab-usage:approve",
+            "lab-usage:schedule:view"
+    );
+
+    private static final Map<String, List<String>> ROLE_DEFAULT_PERMISSION_CODES = Map.ofEntries(
+            Map.entry("TEACHER", LAB_USAGE_APPLICANT_PERMISSION_CODES),
+            Map.entry("006", LAB_USAGE_APPLICANT_PERMISSION_CODES),
+            Map.entry("LAB_ROOM_MANAGER", LAB_USAGE_APPROVER_PERMISSION_CODES),
+            Map.entry("LAB_MANAGER", LAB_USAGE_APPROVER_PERMISSION_CODES),
+            Map.entry("005", LAB_USAGE_APPROVER_PERMISSION_CODES),
+            Map.entry("CENTER_DIRECTOR", LAB_USAGE_APPROVER_PERMISSION_CODES),
+            Map.entry("CENTER_ADMIN", LAB_USAGE_APPROVER_PERMISSION_CODES),
+            Map.entry("003", LAB_USAGE_APPROVER_PERMISSION_CODES),
+            Map.entry("DEPUTY_DEAN", LAB_USAGE_APPROVER_PERMISSION_CODES),
+            Map.entry("002", LAB_USAGE_APPROVER_PERMISSION_CODES),
+            Map.entry("DEAN", LAB_USAGE_APPROVER_PERMISSION_CODES),
+            Map.entry("001", LAB_USAGE_APPROVER_PERMISSION_CODES)
+    );
+
     private static final List<PermissionSeed> CORE_PERMISSIONS = List.of(
             // 系统管理
             new PermissionSeed("module:system", "系统管理", 1, null, 100),
@@ -76,6 +108,19 @@ public class PermissionBootstrapRunner implements ApplicationRunner {
             new PermissionSeed("hazardous:usage:list", "危化品使用记录查看", 3, "module:hazardous", 5010),
             new PermissionSeed("hazardous:ledger:view", "危化品台账查看", 3, "module:hazardous", 5020),
 
+            // Lab management
+            new PermissionSeed("module:lab", "Lab management", 1, null, 700),
+            new PermissionSeed("lab-room:list", "Lab room list", 3, "module:lab", 7010),
+            new PermissionSeed("lab-room:create", "Create lab room", 3, "module:lab", 7020),
+            new PermissionSeed("lab-room:update", "Update lab room", 3, "module:lab", 7030),
+            new PermissionSeed("lab-room:delete", "Delete lab room", 3, "module:lab", 7040),
+            new PermissionSeed("lab-room:manager:update", "Update lab room managers", 3, "module:lab", 7050),
+            new PermissionSeed("lab-usage:list", "Lab usage application list", 3, "module:lab", 7060),
+            new PermissionSeed("lab-usage:create", "Create lab usage application", 3, "module:lab", 7070),
+            new PermissionSeed("lab-usage:cancel", "Cancel lab usage application", 3, "module:lab", 7080),
+            new PermissionSeed("lab-usage:approve", "Approve lab usage application", 3, "module:lab", 7090),
+            new PermissionSeed("lab-usage:schedule:view", "View lab usage schedule", 3, "module:lab", 7100),
+
             // 预警管理
             new PermissionSeed("module:alert", "预警管理", 1, null, 600),
             new PermissionSeed("alert:list", "预警列表查看", 3, "module:alert", 6010)
@@ -87,6 +132,7 @@ public class PermissionBootstrapRunner implements ApplicationRunner {
             Map<String, Long> permissionIdMap = ensurePermissions();
             bindAdminRole(permissionIdMap);
             bindDefaultPermissionsToAllRoles(permissionIdMap);
+            bindRoleDefaultPermissions(permissionIdMap);
             log.info("Core permission bootstrap completed, size={}", permissionIdMap.size());
         } catch (Exception ex) {
             log.error("Failed to bootstrap core permissions", ex);
@@ -180,6 +226,27 @@ public class PermissionBootstrapRunner implements ApplicationRunner {
         }
     }
 
+    private void bindRoleDefaultPermissions(Map<String, Long> permissionIdMap) {
+        List<RoleSeed> roles = jdbcTemplate.query(
+                "SELECT id, role_code FROM sys_role WHERE deleted = 0",
+                (rs, rowNum) -> new RoleSeed(rs.getLong("id"), rs.getString("role_code"))
+        );
+        for (RoleSeed role : roles) {
+            List<String> permissionCodes = ROLE_DEFAULT_PERMISSION_CODES.get(normalizeRoleCode(role.roleCode()));
+            if (permissionCodes == null || permissionCodes.isEmpty()) {
+                continue;
+            }
+            for (String permissionCode : permissionCodes) {
+                Long permissionId = permissionIdMap.get(permissionCode);
+                if (permissionId == null) {
+                    log.warn("Role default permission code not found: role={}, permission={}", role.roleCode(), permissionCode);
+                    continue;
+                }
+                insertRolePermissionIfAbsent(role.id(), permissionId);
+            }
+        }
+    }
+
     private void insertRolePermissionIfAbsent(Long roleId, Long permissionId) {
         jdbcTemplate.update(
                 "INSERT INTO sys_role_permission (role_id, permission_id) " +
@@ -187,6 +254,10 @@ public class PermissionBootstrapRunner implements ApplicationRunner {
                         "SELECT 1 FROM sys_role_permission WHERE role_id = ? AND permission_id = ?)",
                 roleId, permissionId, roleId, permissionId
         );
+    }
+
+    private String normalizeRoleCode(String roleCode) {
+        return roleCode == null ? "" : roleCode.trim().toUpperCase();
     }
 
     private record PermissionSeed(
@@ -197,5 +268,7 @@ public class PermissionBootstrapRunner implements ApplicationRunner {
             Integer sortOrder
     ) {
     }
-}
 
+    private record RoleSeed(Long id, String roleCode) {
+    }
+}

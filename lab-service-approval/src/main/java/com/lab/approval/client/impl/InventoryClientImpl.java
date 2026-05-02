@@ -169,6 +169,41 @@ public class InventoryClientImpl implements InventoryClient {
             return new ArrayList<>();
         }
     }
+
+    @Override
+    public boolean sendNotification(Long receiverId,
+                                    Integer notificationType,
+                                    String title,
+                                    String content,
+                                    String businessType,
+                                    Long businessId) {
+        if (receiverId == null) {
+            return false;
+        }
+        try {
+            String url = inventoryServiceUrl + "/api/v1/notifications/send";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("receiverId", receiverId);
+            requestBody.put("notificationType", notificationType);
+            requestBody.put("title", title);
+            requestBody.put("content", content);
+            requestBody.put("businessType", businessType);
+            requestBody.put("businessId", businessId);
+            requestBody.put("pushChannel", 1);
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            log.warn("发送站内消息失败: receiverId={}, businessType={}, businessId={}",
+                    receiverId, businessType, businessId, e);
+            return false;
+        }
+    }
     
     @Override
     public boolean returnHazardousMaterial(Long materialId, BigDecimal returnQuantity, String remark) {

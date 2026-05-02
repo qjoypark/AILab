@@ -1,6 +1,7 @@
 package com.lab.inventory.service;
 
 import com.lab.inventory.client.ApprovalClient;
+import com.lab.inventory.dto.LabUsageApplicationDTO;
 import com.lab.inventory.dto.MaterialApplicationDTO;
 import com.lab.inventory.dto.TodoItemDTO;
 import com.lab.inventory.dto.TodoListDTO;
@@ -157,6 +158,44 @@ class TodoServiceTest {
         assertThat(item.getBusinessId()).isEqualTo(1L);
         assertThat(item.getBusinessNo()).isEqualTo("APP001");
         assertThat(item.getApplicantName()).isEqualTo("张三");
+    }
+
+    @Test
+    @DisplayName("获取待办事项列表 - 包含实验室使用待审批申请")
+    void testGetTodoList_WithLabUsageApprovals() {
+        List<LabUsageApplicationDTO> pendingLabApprovals = new ArrayList<>();
+
+        LabUsageApplicationDTO labApproval = new LabUsageApplicationDTO();
+        labApproval.setId(10L);
+        labApproval.setApplicationNo("LAB202605020001");
+        labApproval.setApplicantName("王老师");
+        labApproval.setApplicantDept("农学院");
+        labApproval.setLabRoomName("植物生理实验室");
+        labApproval.setLabRoomCode("A101");
+        labApproval.setUsagePurpose("课程实验");
+        labApproval.setStartTime(LocalDateTime.now().plusDays(1));
+        labApproval.setCreatedTime(LocalDateTime.now().minusHours(1));
+        pendingLabApprovals.add(labApproval);
+
+        when(approvalClient.getPendingApprovals(testUserId)).thenReturn(new ArrayList<>());
+        when(approvalClient.getPendingLabUsageApprovals(testUserId)).thenReturn(pendingLabApprovals);
+        when(alertRecordMapper.selectList(any())).thenReturn(new ArrayList<>());
+
+        TodoListDTO result = todoService.getTodoList(testUserId);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getTotal()).isEqualTo(1);
+        assertThat(result.getApprovalCount()).isEqualTo(1);
+        assertThat(result.getAlertCount()).isEqualTo(0);
+        assertThat(result.getList()).hasSize(1);
+
+        TodoItemDTO item = result.getList().get(0);
+        assertThat(item.getType()).isEqualTo("LAB_APPROVAL");
+        assertThat(item.getTypeDesc()).isEqualTo("实验室待审批");
+        assertThat(item.getBusinessId()).isEqualTo(10L);
+        assertThat(item.getBusinessNo()).isEqualTo("LAB202605020001");
+        assertThat(item.getTitle()).contains("实验室使用");
+        assertThat(item.getContent()).contains("植物生理实验室");
     }
     
     @Test

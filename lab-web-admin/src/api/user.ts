@@ -17,6 +17,10 @@ export const userApi = {
     return request.get<any, PageResult<User>>('/system/users', { params }).then(toListResult<User>)
   },
 
+  getSelectableUsers(params: UserQuery) {
+    return request.get<any, PageResult<User>>('/system/users/select-options', { params }).then(toListResult<User>)
+  },
+
   getUserById(id: number) {
     return request.get<any, User>(`/system/users/${id}`)
   },

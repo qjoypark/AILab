@@ -4,20 +4,18 @@ import type { MenuItem } from '@/types/user'
 import {
   ALERT_PERMISSIONS,
   APPROVAL_PERMISSIONS,
+  APPROVAL_TODO_PERMISSIONS,
   HAZARDOUS_PERMISSIONS,
   INVENTORY_MODULE_PERMISSIONS,
   INVENTORY_STOCK_CHECK_PERMISSIONS,
   INVENTORY_STOCK_IN_PERMISSIONS,
   INVENTORY_STOCK_OUT_PERMISSIONS,
   INVENTORY_STOCK_PERMISSIONS,
+  LAB_MODULE_PERMISSIONS,
+  LAB_ROOM_PERMISSIONS,
+  LAB_USAGE_PERMISSIONS,
   MATERIAL_PERMISSIONS
 } from '@/constants/permissions'
-
-const materialMenuPathPrefixes = ['/materials', '/instruments']
-const inventoryMenuPathPrefixes = ['/inventory']
-const approvalMenuPathPrefixes = ['/applications', '/approval']
-const hazardousMenuPathPrefixes = ['/hazardous']
-const alertMenuPathPrefixes = ['/alerts']
 
 const defaultMenus: MenuItem[] = [
   {
@@ -127,7 +125,7 @@ const defaultMenus: MenuItem[] = [
     name: 'Approval',
     title: '申请审批',
     icon: 'Document',
-    meta: { title: '申请审批', permissions: [...APPROVAL_PERMISSIONS] },
+    meta: { title: '申请审批', permissions: [...APPROVAL_PERMISSIONS, ...APPROVAL_TODO_PERMISSIONS] },
     children: [
       {
         id: 51,
@@ -141,12 +139,51 @@ const defaultMenus: MenuItem[] = [
         path: '/approval/todo',
         name: 'ApprovalTodo',
         title: '待审批事项',
-        meta: { title: '待审批事项', permissions: [...APPROVAL_PERMISSIONS] }
+        meta: { title: '待审批事项', permissions: [...APPROVAL_TODO_PERMISSIONS] }
+      }
+    ]
+  },
+  {
+    id: 9,
+    path: '/labs',
+    name: 'Labs',
+    title: '实验室管理',
+    icon: 'OfficeBuilding',
+    meta: { title: '实验室管理', permissions: [...LAB_MODULE_PERMISSIONS] },
+    children: [
+      {
+        id: 91,
+        path: '/labs/rooms',
+        name: 'LabRoomList',
+        title: '实验室列表',
+        meta: { title: '实验室列表', permissions: [...LAB_ROOM_PERMISSIONS] }
+      },
+      {
+        id: 92,
+        path: '/labs/usage-applications',
+        name: 'LabUsageApplicationList',
+        title: '实验室使用申请',
+        meta: { title: '实验室使用申请', permissions: [...LAB_USAGE_PERMISSIONS] }
+      },
+      {
+        id: 93,
+        path: '/labs/usage-schedule',
+        name: 'LabUsageSchedule',
+        title: '实验室使用日程',
+        meta: { title: '实验室使用日程', permissions: ['lab-usage:schedule:view'] }
       }
     ]
   },
   {
     id: 6,
+    path: '/usage-records',
+    name: 'MedicationUsageRecordList',
+    title: '药品使用',
+    icon: 'Tickets',
+    meta: { title: '药品使用' }
+  },
+  {
+    id: 7,
     path: '/hazardous',
     name: 'Hazardous',
     title: '危化品管理',
@@ -154,14 +191,7 @@ const defaultMenus: MenuItem[] = [
     meta: { title: '危化品管理', permissions: [...HAZARDOUS_PERMISSIONS] },
     children: [
       {
-        id: 61,
-        path: '/hazardous/usage-records',
-        name: 'UsageRecordList',
-        title: '使用记录',
-        meta: { title: '使用记录', permissions: [...HAZARDOUS_PERMISSIONS] }
-      },
-      {
-        id: 62,
+        id: 71,
         path: '/hazardous/ledger',
         name: 'HazardousLedger',
         title: '危化品台账',
@@ -170,21 +200,21 @@ const defaultMenus: MenuItem[] = [
     ]
   },
   {
-    id: 7,
+    id: 8,
     path: '/notify',
     name: 'Notify',
     title: '预警通知',
     icon: 'Bell',
     children: [
       {
-        id: 71,
+        id: 81,
         path: '/alerts',
         name: 'AlertList',
         title: '预警管理',
         meta: { title: '预警管理', permissions: [...ALERT_PERMISSIONS] }
       },
       {
-        id: 72,
+        id: 82,
         path: '/notifications',
         name: 'MessageCenter',
         title: '消息中心',
@@ -197,71 +227,12 @@ const defaultMenus: MenuItem[] = [
 export function useMenu() {
   const userStore = useUserStore()
 
-  const hasMaterialModuleAccess = () => userStore.hasAnyPermission([...MATERIAL_PERMISSIONS])
-  const hasInventoryModuleAccess = () => userStore.hasAnyPermission([...INVENTORY_MODULE_PERMISSIONS])
-  const hasApprovalModuleAccess = () => userStore.hasAnyPermission([...APPROVAL_PERMISSIONS])
-  const hasHazardousModuleAccess = () => userStore.hasAnyPermission([...HAZARDOUS_PERMISSIONS])
-
-  const startsWithAnyPrefix = (path: string, prefixes: string[]) => prefixes.some(prefix => path.startsWith(prefix))
-
-  const isMaterialMenu = (menu: MenuItem): boolean => {
-    const path = (menu.path ?? '').toLowerCase()
-    if (startsWithAnyPrefix(path, materialMenuPathPrefixes)) {
-      return true
-    }
-    const name = (menu.name ?? '').toLowerCase()
-    if (['materials', 'materiallist', 'instrumentlist'].includes(name)) {
-      return true
-    }
-    return !!menu.children?.some(child => isMaterialMenu(child))
-  }
-
-  const isInventoryMenu = (menu: MenuItem): boolean => {
-    const path = (menu.path ?? '').toLowerCase()
-    if (startsWithAnyPrefix(path, inventoryMenuPathPrefixes)) {
-      return true
-    }
-    const name = (menu.name ?? '').toLowerCase()
-    if (['inventory', 'stocklist', 'stockinmanagement', 'stockoutmanagement', 'stockcheckmanagement'].includes(name)) {
-      return true
-    }
-    return !!menu.children?.some(child => isInventoryMenu(child))
-  }
-
-  const isApprovalMenu = (menu: MenuItem): boolean => {
-    const path = (menu.path ?? '').toLowerCase()
-    if (startsWithAnyPrefix(path, approvalMenuPathPrefixes)) {
-      return true
-    }
-    const name = (menu.name ?? '').toLowerCase()
-    if (['approval', 'applicationlist', 'approvaltodo'].includes(name)) {
-      return true
-    }
-    return !!menu.children?.some(child => isApprovalMenu(child))
-  }
-
-  const isHazardousMenu = (menu: MenuItem): boolean => {
-    const path = (menu.path ?? '').toLowerCase()
-    if (startsWithAnyPrefix(path, hazardousMenuPathPrefixes)) {
-      return true
-    }
-    const name = (menu.name ?? '').toLowerCase()
-    if (['hazardous', 'usagerecordlist', 'hazardousledger'].includes(name)) {
-      return true
-    }
-    return !!menu.children?.some(child => isHazardousMenu(child))
-  }
-
-  const isAlertMenu = (menu: MenuItem): boolean => {
-    const path = (menu.path ?? '').toLowerCase()
-    if (startsWithAnyPrefix(path, alertMenuPathPrefixes)) {
-      return true
-    }
-    const name = (menu.name ?? '').toLowerCase()
-    if (['notify', 'alertlist'].includes(name)) {
-      return true
-    }
-    return !!menu.children?.some(child => isAlertMenu(child))
+  const hasMenuAccess = (menu: MenuItem): boolean => {
+    const roles = menu.meta?.roles ?? []
+    const permissions = menu.meta?.permissions ?? []
+    const hasRole = roles.length === 0 || userStore.hasRole(roles)
+    const hasPermission = permissions.length === 0 || userStore.hasAnyPermission(permissions)
+    return hasRole && hasPermission
   }
 
   const filterMenus = (menus: MenuItem[]): MenuItem[] => {
@@ -271,34 +242,11 @@ export function useMenu() {
         children: menu.children ? filterMenus(menu.children) : undefined
       }))
       .filter(menu => {
-        if (isMaterialMenu(menu) && !hasMaterialModuleAccess()) {
-          return false
-        }
-        if (isInventoryMenu(menu) && !hasInventoryModuleAccess()) {
-          return false
-        }
-        if (isApprovalMenu(menu) && !hasApprovalModuleAccess()) {
-          return false
-        }
-        if (isHazardousMenu(menu) && !hasHazardousModuleAccess()) {
-          return false
-        }
-
-        const roles = menu.meta?.roles ?? []
-        const permissions = menu.meta?.permissions ?? []
-        const hasMenuRole = roles.length === 0 || userStore.hasRole(roles)
-        const hasMenuPermission = permissions.length === 0 || userStore.hasAnyPermission(permissions)
-        const hasMenuAccess = hasMenuRole && hasMenuPermission
-
+        const accessible = hasMenuAccess(menu)
         if (menu.children && menu.children.length > 0) {
-          return hasMenuAccess && menu.children.length > 0
+          return accessible && menu.children.length > 0
         }
-
-        if (isAlertMenu(menu)) {
-          return hasMenuAccess
-        }
-
-        return hasMenuAccess
+        return accessible
       })
   }
 

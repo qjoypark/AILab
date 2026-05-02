@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lab.common.annotation.AuditLog;
 import com.lab.common.result.Result;
 import com.lab.user.dto.UserDTO;
+import com.lab.user.dto.UserOptionDTO;
 import com.lab.user.entity.SysUser;
 import com.lab.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,6 +39,23 @@ public class UserController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer userType) {
         Page<SysUser> result = userService.listUsers(page, size, keyword, userType);
+        return Result.success(result);
+    }
+
+    @Operation(summary = "查询可选择人员")
+    @GetMapping("/select-options")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('CENTER_ADMIN') " +
+            "or hasAuthority('lab-usage:create') " +
+            "or hasAuthority('lab-usage:list') " +
+            "or hasAuthority('lab-usage:schedule:view') " +
+            "or hasAuthority('lab-room:manager:update')")
+    public Result<Page<UserOptionDTO>> listSelectableUsers(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer userType,
+            @RequestParam(defaultValue = "1") Integer status) {
+        Page<UserOptionDTO> result = userService.listSelectableUsers(page, size, keyword, userType, status);
         return Result.success(result);
     }
 

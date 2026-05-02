@@ -10,10 +10,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 /**
  * 入库管理控制器
@@ -85,5 +90,30 @@ public class StockInController {
     public Result<Long> hazardousReturnStockIn(@Validated @RequestBody HazardousReturnStockInRequest request) {
         Long stockInId = stockInService.hazardousReturnStockIn(request);
         return Result.success(stockInId);
+    }
+
+    @Operation(summary = "下载入库导入模板")
+    @GetMapping("/import/template")
+    public ResponseEntity<byte[]> downloadImportTemplate() {
+        byte[] excelBytes = stockInService.generateStockInImportTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentDispositionFormData("attachment",
+                "stock_in_import_template_" + LocalDate.now() + ".xlsx");
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(excelBytes);
+    }
+
+    @Operation(summary = "Excel导入预览入库单")
+    @PostMapping("/import")
+    public Result<StockInDTO> importStockIn(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) Long operatorId,
+            @RequestHeader(value = "X-UserId", required = false) Long headerUserId
+    ) {
+        Long finalOperatorId = operatorId != null ? operatorId : headerUserId;
+        StockInDTO preview = stockInService.importStockInFromExcel(file, finalOperatorId);
+        return Result.success(preview);
     }
 }

@@ -23,6 +23,17 @@ const normalizeToken = (value: unknown): string => {
   return ''
 }
 
+const toHeaderSafeValue = (value: string): string => {
+  if (!value) {
+    return ''
+  }
+  try {
+    return encodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   Object.prototype.toString.call(value) === '[object Object]'
 
@@ -65,6 +76,10 @@ const request = axios.create({
   timeout: 30000
 })
 
+const shouldShowErrorMessage = (config?: AxiosResponse['config'] | AxiosError['config']) => {
+  return !(config as { silentError?: boolean } | undefined)?.silentError
+}
+
 // 是否正在刷新token
 let isRefreshing = false
 // 待重试的请求队列
@@ -75,13 +90,38 @@ request.interceptors.request.use(
   (config) => {
     const userStore = useUserStore()
     const accessToken = normalizeToken(userStore.token)
+    const currentUser = userStore.userInfo
+    const headers = (config.headers ?? {}) as Record<string, string>
+    config.headers = headers as InternalAxiosRequestConfig['headers']
 
     if (config.params !== undefined) {
       config.params = normalizeQueryParams(config.params) as InternalAxiosRequestConfig['params']
     }
 
     if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`
+      headers.Authorization = `Bearer ${accessToken}`
+    }
+    if (currentUser?.id != null) {
+      headers['X-UserId'] = String(currentUser.id)
+    }
+    if (currentUser?.username) {
+      headers['X-Username'] = currentUser.username
+    }
+    if (currentUser?.realName) {
+      headers['X-RealName'] = toHeaderSafeValue(currentUser.realName)
+    }
+    if (currentUser?.department) {
+      headers['X-Department'] = toHeaderSafeValue(currentUser.department)
+    }
+    if (currentUser?.roles?.length) {
+      headers['X-Roles'] = currentUser.roles.join(',')
+    }
+    const permissionSet = new Set([
+      ...(currentUser?.permissions ?? []),
+      ...userStore.permissions
+    ])
+    if (permissionSet.size > 0) {
+      headers['X-Permissions'] = Array.from(permissionSet).join(',')
     }
     return config
   },
@@ -100,7 +140,9 @@ request.interceptors.response.use(
     if (code === 200 || code === 0) {
       return data
     } else {
-      ElMessage.error(message || '请求失败')
+      if (shouldShowErrorMessage(response.config)) {
+        ElMessage.error(message || '请求失败')
+      }
       return Promise.reject(new Error(message))
     }
   },
@@ -183,10 +225,10 @@ request.interceptors.response.use(
           router.push('/login')
         }
         ElMessage.error('登录状态失效，请重新登录')
-      } else if (!isLogoutRequest) {
+      } else if (!isLogoutRequest && shouldShowErrorMessage(originalRequest)) {
         ElMessage.error('没有权限访问该资源')
       }
-    } else {
+    } else if (shouldShowErrorMessage(originalRequest)) {
       ElMessage.error(error.message || '网络错误')
     }
     return Promise.reject(error)

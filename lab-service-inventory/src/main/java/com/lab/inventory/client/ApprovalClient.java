@@ -1,6 +1,7 @@
 package com.lab.inventory.client;
 
 import com.lab.inventory.dto.HazardousUsageRecordDTO;
+import com.lab.inventory.dto.LabUsageApplicationDTO;
 import com.lab.inventory.dto.MaterialApplicationDTO;
 
 import java.math.BigDecimal;
@@ -49,4 +50,12 @@ public interface ApprovalClient {
      * @return 待审批申请列表
      */
     List<MaterialApplicationDTO> getPendingApprovals(Long approverId);
+
+    /**
+     * 查询用户的待审批实验室使用申请列表
+     *
+     * @param approverId 审批人ID
+     * @return 待审批实验室使用申请列表
+     */
+    List<LabUsageApplicationDTO> getPendingLabUsageApprovals(Long approverId);
 }

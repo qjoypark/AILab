@@ -1,40 +1,38 @@
 package com.lab.approval.dto;
 
-import lombok.Data;
-
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
+import lombok.Data;
+
 import java.math.BigDecimal;
 
 /**
- * 危化品归还请求DTO
+ * Return request DTO (historical class name kept).
  */
 @Data
 public class HazardousReturnRequest {
-    
+
     /**
-     * 实际使用数量
+     * Actual used quantity. Optional; auto-calculated when absent.
      */
-    @NotNull(message = "实际使用数量不能为空")
-    @DecimalMin(value = "0", message = "实际使用数量不能为负数")
+    @DecimalMin(value = "0", message = "actualUsedQuantity must be >= 0")
     private BigDecimal actualUsedQuantity;
-    
+
     /**
-     * 归还数量
+     * Returned quantity.
      */
-    @NotNull(message = "归还数量不能为空")
-    @DecimalMin(value = "0", message = "归还数量不能为负数")
+    @NotNull(message = "returnedQuantity is required")
+    @DecimalMin(value = "0", message = "returnedQuantity must be >= 0")
     private BigDecimal returnedQuantity;
-    
+
     /**
-     * 废弃数量
+     * Waste quantity. Optional; defaults to 0 when absent.
      */
-    @NotNull(message = "废弃数量不能为空")
-    @DecimalMin(value = "0", message = "废弃数量不能为负数")
+    @DecimalMin(value = "0", message = "wasteQuantity must be >= 0")
     private BigDecimal wasteQuantity;
-    
+
     /**
-     * 归还备注
+     * Remark.
      */
     private String remark;
 }

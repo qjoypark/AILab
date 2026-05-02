@@ -1,116 +1,129 @@
 package com.lab.approval.service;
 
 import com.lab.approval.dto.ApprovalContext;
+import com.lab.approval.dto.ApproverCandidateDTO;
+import com.lab.approval.mapper.ApproverUserMapper;
 import com.lab.approval.service.impl.ApproverAssignmentServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.junit.jupiter.api.Assertions.*;
+import java.util.List;
 
-/**
- * 审批人自动分配服务单元测试
- */
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
 class ApproverAssignmentServiceTest {
-    
+
+    @Mock
+    private ApproverUserMapper approverUserMapper;
+
     private ApproverAssignmentService assignmentService;
-    
+
     @BeforeEach
     void setUp() {
-        assignmentService = new ApproverAssignmentServiceImpl();
+        assignmentService = new ApproverAssignmentServiceImpl(approverUserMapper);
     }
-    
+
     @Test
     void testAssignApprover_LabManager() {
-        // Given
         ApprovalContext context = new ApprovalContext();
-        context.setApplicantDept("农学院");
+        context.setApplicantDept("Agriculture College");
         context.setApplicationType(1);
-        
-        // When
+        when(approverUserMapper.selectApproversByRoleCodes(anyList()))
+            .thenReturn(List.of(approver(3L, "CENTER_ADMIN")));
+
         Long approverId = assignmentService.assignApprover("LAB_MANAGER", context);
-        
-        // Then
-        assertNotNull(approverId);
-        assertEquals(2L, approverId);
-    }
-    
-    @Test
-    void testAssignApprover_CenterAdmin() {
-        // Given
-        ApprovalContext context = new ApprovalContext();
-        context.setApplicantDept("农学院");
-        context.setApplicationType(2);
-        context.setMaterialType(3); // 危化品
-        
-        // When
-        Long approverId = assignmentService.assignApprover("CENTER_ADMIN", context);
-        
-        // Then
+
         assertNotNull(approverId);
         assertEquals(3L, approverId);
     }
-    
+
     @Test
-    void testAssignApprover_SafetyAdmin() {
-        // Given
+    void testAssignApprover_CenterAdmin() {
         ApprovalContext context = new ApprovalContext();
-        context.setApplicantDept("农学院");
+        context.setApplicantDept("Agriculture College");
+        context.setApplicationType(2);
+        context.setMaterialType(3);
+        when(approverUserMapper.selectApproversByRoleCodes(anyList()))
+            .thenReturn(List.of(approver(3L, "CENTER_ADMIN")));
+
+        Long approverId = assignmentService.assignApprover("CENTER_ADMIN", context);
+
+        assertNotNull(approverId);
+        assertEquals(3L, approverId);
+    }
+
+    @Test
+    void testAssignApprover_SafetyAdminUsesTemporaryCenterAdminPolicy() {
+        ApprovalContext context = new ApprovalContext();
+        context.setApplicantDept("Agriculture College");
         context.setApplicationType(2);
         context.setHasControlledMaterial(true);
-        
-        // When
+        when(approverUserMapper.selectApproversByRoleCodes(anyList()))
+            .thenReturn(List.of(approver(3L, "CENTER_ADMIN")));
+
         Long approverId = assignmentService.assignApprover("ADMIN", context);
-        
-        // Then
+
         assertNotNull(approverId);
-        assertEquals(1L, approverId);
+        assertEquals(3L, approverId);
     }
-    
+
     @Test
-    void testAssignApprover_SafetyAdminAlias() {
-        // Given
+    void testAssignApprover_SafetyAdminAliasUsesTemporaryCenterAdminPolicy() {
         ApprovalContext context = new ApprovalContext();
-        context.setApplicantDept("农学院");
+        context.setApplicantDept("Agriculture College");
         context.setApplicationType(2);
-        
-        // When
+        when(approverUserMapper.selectApproversByRoleCodes(anyList()))
+            .thenReturn(List.of(approver(3L, "CENTER_ADMIN")));
+
         Long approverId = assignmentService.assignApprover("SAFETY_ADMIN", context);
-        
-        // Then
+
         assertNotNull(approverId);
-        assertEquals(1L, approverId);
+        assertEquals(3L, approverId);
     }
-    
+
     @Test
     void testAssignApprover_UnknownRole() {
-        // Given
         ApprovalContext context = new ApprovalContext();
-        context.setApplicantDept("农学院");
-        
-        // When
+        context.setApplicantDept("Agriculture College");
+        when(approverUserMapper.selectApproversByRoleCodes(anyList()))
+            .thenReturn(List.of());
+
         Long approverId = assignmentService.assignApprover("UNKNOWN_ROLE", context);
-        
-        // Then
+
         assertNull(approverId);
     }
-    
+
     @Test
     void testAssignApprover_DifferentDepartments() {
-        // Given
         ApprovalContext context1 = new ApprovalContext();
-        context1.setApplicantDept("农学院");
-        
+        context1.setApplicantDept("Agriculture College");
+
         ApprovalContext context2 = new ApprovalContext();
-        context2.setApplicantDept("生物学院");
-        
-        // When
+        context2.setApplicantDept("Biology College");
+
+        when(approverUserMapper.selectApproversByRoleCodes(anyList()))
+            .thenReturn(List.of(approver(2L, "LAB_MANAGER")));
+
         Long approverId1 = assignmentService.assignApprover("LAB_MANAGER", context1);
         Long approverId2 = assignmentService.assignApprover("LAB_MANAGER", context2);
-        
-        // Then
+
         assertNotNull(approverId1);
         assertNotNull(approverId2);
-        // 当前简化实现返回相同的ID，实际应该根据部门返回不同的负责人
         assertEquals(approverId1, approverId2);
+    }
+
+    private ApproverCandidateDTO approver(Long userId, String roleCode) {
+        ApproverCandidateDTO approver = new ApproverCandidateDTO();
+        approver.setUserId(userId);
+        approver.setRoleCode(roleCode);
+        return approver;
     }
 }

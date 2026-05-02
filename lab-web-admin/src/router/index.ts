@@ -1,14 +1,18 @@
-import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
-import { useUserStore } from '@/stores/user'
+import { createRouter, createWebHistory } from 'vue-router'
+import type { RouteRecordRaw } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { useUserStore } from '@/stores/user'
 import {
   ALERT_PERMISSIONS,
   APPROVAL_PERMISSIONS,
+  APPROVAL_TODO_PERMISSIONS,
   HAZARDOUS_PERMISSIONS,
   INVENTORY_STOCK_CHECK_PERMISSIONS,
   INVENTORY_STOCK_IN_PERMISSIONS,
   INVENTORY_STOCK_OUT_PERMISSIONS,
   INVENTORY_STOCK_PERMISSIONS,
+  LAB_ROOM_PERMISSIONS,
+  LAB_USAGE_PERMISSIONS,
   MATERIAL_PERMISSIONS
 } from '@/constants/permissions'
 
@@ -111,10 +115,28 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '领用申请', permissions: APPROVAL_PERMISSIONS }
       },
       {
+        path: 'labs/rooms',
+        name: 'LabRoomList',
+        component: () => import('@/views/lab/LabRoomList.vue'),
+        meta: { title: '实验室列表', permissions: LAB_ROOM_PERMISSIONS }
+      },
+      {
+        path: 'labs/usage-applications',
+        name: 'LabUsageApplicationList',
+        component: () => import('@/views/lab/LabUsageApplicationList.vue'),
+        meta: { title: '实验室使用申请', permissions: LAB_USAGE_PERMISSIONS }
+      },
+      {
+        path: 'labs/usage-schedule',
+        name: 'LabUsageSchedule',
+        component: () => import('@/views/lab/LabUsageSchedule.vue'),
+        meta: { title: '实验室使用日程', permissions: ['lab-usage:schedule:view'] }
+      },
+      {
         path: 'approval/todo',
         name: 'ApprovalTodo',
         component: () => import('@/views/approval/ApprovalTodo.vue'),
-        meta: { title: '待审批事项', permissions: APPROVAL_PERMISSIONS }
+        meta: { title: '待审批事项', permissions: APPROVAL_TODO_PERMISSIONS }
       },
       {
         path: 'inventory/stock-out',
@@ -129,10 +151,15 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '库存盘点', permissions: INVENTORY_STOCK_CHECK_PERMISSIONS }
       },
       {
-        path: 'hazardous/usage-records',
-        name: 'UsageRecordList',
+        path: 'usage-records',
+        name: 'MedicationUsageRecordList',
         component: () => import('@/views/hazardous/UsageRecordList.vue'),
-        meta: { title: '危化品使用记录', permissions: HAZARDOUS_PERMISSIONS }
+        meta: { title: '药品使用' }
+      },
+      {
+        path: 'hazardous/usage-records',
+        redirect: '/usage-records',
+        meta: { requiresAuth: true }
       },
       {
         path: 'hazardous/ledger',

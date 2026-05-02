@@ -141,7 +141,7 @@
           </el-table-column>
           <el-table-column label="总可用库存" width="130" align="right">
             <template #default="{ row }">
-              {{ row.availableStock ?? '-' }}
+              {{ normalizeIntegerQuantity(row.availableStock) || '-' }}
             </template>
           </el-table-column>
           <el-table-column label="申请数量" width="150">
@@ -149,8 +149,10 @@
               <el-input-number
                 v-model="row.requestedQuantity"
                 :min="0"
-                :max="row.availableStock && row.availableStock > 0 ? row.availableStock : undefined"
-                :precision="2"
+                :max="normalizeIntegerQuantity(row.availableStock) > 0 ? normalizeIntegerQuantity(row.availableStock) : undefined"
+                :step="1"
+                :step-strictly="true"
+                :precision="0"
                 style="width: 100%"
               />
             </template>
@@ -282,6 +284,14 @@ const getTodayDate = () => {
   return `${year}-${month}-${day}`
 }
 
+const normalizeIntegerQuantity = (value: unknown) => {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return 0
+  }
+  return Math.floor(numericValue)
+}
+
 const queryForm = reactive<ApplicationQuery & { createdDateRange: string[] }>({
   keyword: '',
   status: -1,
@@ -382,12 +392,14 @@ const handleMaterialSelected = (material: {
   row.materialCode = material.materialCode
   row.materialName = material.materialName
   row.unit = material.unit
-  row.availableStock = material.availableQuantity
+  const availableStock = normalizeIntegerQuantity(material.availableQuantity)
+  row.availableStock = availableStock
   if (row.requestedQuantity <= 0) {
-    row.requestedQuantity = material.availableQuantity > 0 ? 1 : 0
-  } else if (material.availableQuantity > 0 && row.requestedQuantity > material.availableQuantity) {
-    row.requestedQuantity = material.availableQuantity
+    row.requestedQuantity = availableStock > 0 ? 1 : 0
+  } else if (availableStock > 0 && row.requestedQuantity > availableStock) {
+    row.requestedQuantity = availableStock
   }
+  row.requestedQuantity = normalizeIntegerQuantity(row.requestedQuantity)
 }
 
 const handleSubmit = async () => {

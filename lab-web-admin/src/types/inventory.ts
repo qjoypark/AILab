@@ -37,7 +37,7 @@ export interface StockIn {
   operatorName?: string
   supplierId?: number
   supplierName?: string
-  stockInType: number // 1-采购入库 2-退货入库 3-盘盈入库
+  stockInType: number // 1-采购入库 2-退货入库 3-盘盈入库 4-归还入库
   totalAmount?: number
   status: number // 0-待确认 1-已确认
   remark?: string
@@ -85,6 +85,8 @@ export interface StockOut {
   operatorName?: string
   applicationId?: number
   applicationNo?: string
+  receiverId?: number
+  receiverName?: string
   totalAmount?: number
   status: number // 0-待确认 1-已确认
   remark?: string

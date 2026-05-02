@@ -15,6 +15,8 @@ CREATE TABLE approval_flow_config (
 -- 审批记录表
 CREATE TABLE approval_record (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '记录ID',
+    business_type INT DEFAULT 1 COMMENT 'business type:1-normal material,2-hazardous material,3-lab usage',
+    business_no VARCHAR(50) COMMENT 'business order no',
     application_id BIGINT NOT NULL COMMENT '申请单ID',
     application_no VARCHAR(50) NOT NULL COMMENT '申请单号',
     approver_id BIGINT NOT NULL COMMENT '审批人ID',
@@ -25,6 +27,7 @@ CREATE TABLE approval_record (
     approval_time DATETIME NOT NULL COMMENT '审批时间',
     created_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_application_id (application_id),
+    INDEX idx_business_application (business_type, application_id),
     INDEX idx_approver_id (approver_id),
     INDEX idx_approval_time (approval_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审批记录表';

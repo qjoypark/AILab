@@ -4,10 +4,25 @@
       <template #header>
         <div class="card-header">
           <span>入库管理</span>
-          <el-button v-if="canCreateStockIn" type="primary" @click="handleAdd">
-            <el-icon><Plus /></el-icon>
-            新增入库单
-          </el-button>
+          <div class="header-actions">
+            <el-button v-if="canCreateStockIn" @click="handleDownloadImportTemplate">
+              下载导入模板
+            </el-button>
+            <el-upload
+              v-if="canCreateStockIn"
+              :show-file-list="false"
+              :auto-upload="false"
+              accept=".xlsx,.xls"
+              :on-change="handleImportFileChange"
+              :disabled="importing"
+            >
+              <el-button type="warning" :loading="importing">Excel导入</el-button>
+            </el-upload>
+            <el-button v-if="canCreateStockIn" type="primary" @click="handleAdd">
+              <el-icon><Plus /></el-icon>
+              新增入库单
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -75,7 +90,8 @@
           <template #default="{ row }">
             <el-tag v-if="row.stockInType === 1">采购入库</el-tag>
             <el-tag v-else-if="row.stockInType === 2" type="warning">退货入库</el-tag>
-            <el-tag v-else type="info">盘盈入库</el-tag>
+            <el-tag v-else-if="row.stockInType === 3" type="info">盘盈入库</el-tag>
+            <el-tag v-else type="success">归还入库</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="supplierName" label="供应商" />
@@ -173,6 +189,7 @@
                 <el-option label="采购入库" :value="1" />
                 <el-option label="退货入库" :value="2" />
                 <el-option label="盘盈入库" :value="3" />
+                <el-option label="归还入库" :value="4" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -265,7 +282,8 @@
         <el-descriptions-item label="入库类型">
           <el-tag v-if="currentStockIn?.stockInType === 1">采购入库</el-tag>
           <el-tag v-else-if="currentStockIn?.stockInType === 2" type="warning">退货入库</el-tag>
-          <el-tag v-else type="info">盘盈入库</el-tag>
+          <el-tag v-else-if="currentStockIn?.stockInType === 3" type="info">盘盈入库</el-tag>
+          <el-tag v-else type="success">归还入库</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag v-if="currentStockIn?.status === 0" type="warning">待确认</el-tag>
@@ -315,6 +333,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
+import type { UploadFile } from 'element-plus'
 import { inventoryApi } from '@/api/inventory'
 import type { StockIn, StockInForm, StockInDetail, Warehouse } from '@/types/inventory'
 import type { Material } from '@/types/material'
@@ -326,6 +345,7 @@ import { INVENTORY_STOCK_IN_PERMISSIONS } from '@/constants/permissions'
 const userStore = useUserStore()
 const loading = ref(false)
 const submitting = ref(false)
+const importing = ref(false)
 const dialogVisible = ref(false)
 const viewDialogVisible = ref(false)
 const dialogTitle = ref('')
@@ -399,8 +419,11 @@ const resolveUserName = async (userId?: number) => {
   const currentUser = userStore.userInfo
   const userName =
     currentUser?.id === userId
-      ? (currentUser.realName || currentUser.username || String(userId))
-      : String(userId)
+      ? (currentUser.realName || currentUser.username || '')
+      : ''
+  if (!userName) {
+    return ''
+  }
   userNameMap.value[userId] = userName
   return userName
 }
@@ -443,7 +466,7 @@ const getCreatorDisplay = (stockIn: StockIn) => {
     stockIn.createdByName ||
     (stockIn.createdBy ? userNameMap.value[stockIn.createdBy] : '') ||
     (stockIn.operatorId ? userNameMap.value[stockIn.operatorId] : '') ||
-    formatIdLabel('用户', stockIn.createdBy ?? stockIn.operatorId)
+    '-'
   )
 }
 
@@ -474,9 +497,6 @@ const enrichStockIn = async (stockIn: StockIn) => {
   const creatorId = enriched.createdBy ?? enriched.operatorId
   if (!enriched.createdByName && creatorId) {
     enriched.createdByName = await resolveUserName(creatorId)
-  }
-  if (!enriched.createdByName && creatorId) {
-    enriched.createdByName = formatIdLabel('用户', creatorId)
   }
   if (!enriched.createdByName) {
     enriched.createdByName = '-'
@@ -553,6 +573,85 @@ const handleReset = () => {
   queryForm.status = -1
   queryForm.createdTimeRange = []
   handleQuery()
+}
+
+const handleDownloadImportTemplate = async () => {
+  if (!canCreateStockIn.value) {
+    ElMessage.warning('没有入库单新增权限')
+    return
+  }
+
+  try {
+    const blob = await inventoryApi.downloadStockInImportTemplate()
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `入库导入模板_${new Date().getTime()}.xlsx`
+    link.click()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('模板下载成功')
+  } catch (error) {
+    console.error('下载导入模板失败:', error)
+  }
+}
+
+const handleImportFileChange = async (uploadFile: UploadFile) => {
+  if (!canCreateStockIn.value) {
+    ElMessage.warning('没有入库单新增权限')
+    return
+  }
+
+  const rawFile = uploadFile.raw as File | undefined
+  if (!rawFile) {
+    ElMessage.warning('请选择有效的Excel文件')
+    return
+  }
+
+  const fileName = rawFile.name.toLowerCase()
+  if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+    ElMessage.warning('仅支持 .xlsx/.xls 文件')
+    return
+  }
+
+  importing.value = true
+  try {
+    const preview = await inventoryApi.importStockInExcel(rawFile)
+
+    const previewItems: StockInDetail[] = (preview.items ?? []).map((item) => ({
+      materialId: item.materialId,
+      materialCode: '',
+      materialName: '',
+      unit: '',
+      quantity: Number(item.quantity ?? 0),
+      unitPrice: Number(item.unitPrice ?? 0),
+      batchNumber: item.batchNumber || '',
+      productionDate: item.productionDate || '',
+      expiryDate: item.expiryDate || ''
+    }))
+
+    for (const item of previewItems) {
+      if (item.materialId) {
+        const materialInfo = await resolveMaterialInfo(item.materialId)
+        item.materialCode = materialInfo.materialCode || ''
+        item.materialName = materialInfo.materialName || ''
+        item.unit = materialInfo.unit || ''
+      }
+    }
+
+    dialogTitle.value = '新增入库单（Excel预填）'
+    Object.assign(stockInForm, {
+      warehouseId: preview.warehouseId || getDefaultWarehouseId(),
+      stockInType: preview.stockInType || 1,
+      remark: preview.remark || '',
+      items: previewItems
+    })
+    dialogVisible.value = true
+    ElMessage.success('Excel解析完成，请确认后提交入库单')
+  } catch (error) {
+    console.error('Excel导入失败:', error)
+  } finally {
+    importing.value = false
+  }
 }
 
 const handleAdd = () => {
@@ -729,6 +828,12 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .query-form {

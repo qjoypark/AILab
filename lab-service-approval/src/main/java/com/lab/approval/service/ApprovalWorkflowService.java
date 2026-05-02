@@ -39,6 +39,15 @@ public interface ApprovalWorkflowService {
      * @return 审批记录列表
      */
     List<ApprovalRecord> getApprovalHistory(Long applicationId);
+
+    /**
+     * 获取指定业务类型申请单的审批历史。
+     *
+     * @param businessType 业务类型
+     * @param applicationId 业务单ID
+     * @return 审批记录列表
+     */
+    List<ApprovalRecord> getApprovalHistory(Integer businessType, Long applicationId);
     
     /**
      * 检查用户是否为当前审批人

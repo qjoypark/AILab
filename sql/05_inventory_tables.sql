@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS stock_inventory (
 CREATE TABLE IF NOT EXISTS stock_in (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '入库单ID',
     in_order_no VARCHAR(50) NOT NULL UNIQUE COMMENT '入库单号',
-    in_type TINYINT NOT NULL COMMENT '入库类型:1-采购入库,2-退库入库,3-其他入库',
+    in_type TINYINT NOT NULL COMMENT '入库类型:1-采购入库,2-退货入库,3-盘盈入库,4-归还入库',
     warehouse_id BIGINT NOT NULL COMMENT '仓库ID',
     supplier_id BIGINT COMMENT '供应商ID',
     total_amount DECIMAL(12,2) COMMENT '总金额',

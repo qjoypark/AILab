@@ -21,11 +21,17 @@ public class HazardousUsageRecord {
      * 申请单ID
      */
     private Long applicationId;
+
+    @TableField(exist = false)
+    private String applicationNo;
     
     /**
      * 药品ID
      */
     private Long materialId;
+
+    @TableField(exist = false)
+    private String materialName;
     
     /**
      * 使用人ID

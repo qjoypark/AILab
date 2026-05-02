@@ -2,6 +2,7 @@ package com.lab.inventory.service;
 
 import com.lab.inventory.dto.NotificationPageDTO;
 import com.lab.inventory.dto.NotificationQueryDTO;
+import com.lab.inventory.dto.SendNotificationRequest;
 
 import java.util.List;
 
@@ -33,6 +34,13 @@ public interface NotificationService {
      */
     void sendNotification(Long userId, String title, String content, 
                          String businessType, Long businessId);
+
+    /**
+     * 发送指定类型的站内消息。
+     *
+     * @param request 通知创建请求
+     */
+    void sendNotification(SendNotificationRequest request);
     
     /**
      * 查询通知列表（分页）
@@ -56,6 +64,14 @@ public interface NotificationService {
      * @param userId 用户ID
      */
     void markAllAsRead(Long userId);
+
+    /**
+     * 删除指定通知。
+     *
+     * @param id 通知ID
+     * @param userId 用户ID（用于权限验证）
+     */
+    void deleteNotification(Long id, Long userId);
     
     /**
      * 获取未读消息数量

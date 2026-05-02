@@ -156,6 +156,20 @@ class NotificationControllerTest {
         // 验证服务方法被调用
         verify(notificationService, times(1)).markAllAsRead(userId);
     }
+
+    @Test
+    void testDeleteNotification() {
+        Long notificationId = 1L;
+        Long userId = 1L;
+
+        doNothing().when(notificationService).deleteNotification(notificationId, userId);
+
+        var result = notificationController.deleteNotification(notificationId, userId);
+
+        assertNotNull(result);
+        assertEquals(200, result.getCode());
+        verify(notificationService, times(1)).deleteNotification(notificationId, userId);
+    }
     
     @Test
     void testGetUnreadCount() {

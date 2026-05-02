@@ -53,4 +53,20 @@ public interface ApproverUserMapper {
             "</script>"
     })
     List<ApproverCandidateDTO> selectApproversByRoleCodes(@Param("roleCodes") List<String> roleCodes);
+
+    @Select("""
+            SELECT
+                u.id AS userId,
+                u.username AS username,
+                u.real_name AS realName,
+                'LAB_ROOM_MANAGER' AS roleCode
+            FROM lab_room_manager lrm
+            INNER JOIN sys_user u ON lrm.manager_id = u.id
+            WHERE lrm.lab_room_id = #{labRoomId}
+              AND lrm.status = 1
+              AND u.status = 1
+              AND u.deleted = 0
+            ORDER BY lrm.is_primary DESC, u.id ASC
+            """)
+    List<ApproverCandidateDTO> selectLabRoomManagers(@Param("labRoomId") Long labRoomId);
 }

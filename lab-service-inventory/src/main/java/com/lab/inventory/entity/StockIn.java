@@ -55,4 +55,7 @@ public class StockIn {
 
     @TableField(exist = false)
     private List<StockInDetail> items;
+
+    @TableField(exist = false)
+    private String createdByName;
 }

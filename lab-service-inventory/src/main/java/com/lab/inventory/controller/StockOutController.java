@@ -10,6 +10,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -51,6 +54,22 @@ public class StockOutController {
     @GetMapping("/{id}")
     public Result<StockOut> getStockOut(@PathVariable Long id) {
         return Result.success(stockOutService.getStockOutById(id));
+    }
+
+    @Operation(summary = "生成电子出库单PDF")
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> exportStockOutPdf(@PathVariable Long id) {
+        StockOut stockOut = stockOutService.getStockOutById(id);
+        byte[] pdfBytes = stockOutService.generateStockOutPdf(id);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData(
+                "attachment",
+                "stock_out_" + (stockOut.getOutOrderNo() != null ? stockOut.getOutOrderNo() : id) + ".pdf"
+        );
+
+        return ResponseEntity.ok().headers(headers).body(pdfBytes);
     }
 
     @Operation(summary = "按申请单查询已生成出库单")

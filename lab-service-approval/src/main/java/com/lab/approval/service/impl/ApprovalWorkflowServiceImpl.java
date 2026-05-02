@@ -36,7 +36,16 @@ public class ApprovalWorkflowServiceImpl implements ApprovalWorkflowService {
     public Long initializeApprovalWorkflow(Long applicationId, String applicationNo, ApprovalContext context) {
         log.info("初始化审批流程: applicationId={}, applicationNo={}", applicationId, applicationNo);
 
-        ApprovalFlowConfig flowConfig = getFlowConfig(context.getApplicationType());
+        Integer businessType = resolveBusinessType(context);
+        context.setBusinessType(businessType);
+        if (context.getBusinessId() == null) {
+            context.setBusinessId(applicationId);
+        }
+        if (context.getBusinessNo() == null) {
+            context.setBusinessNo(applicationNo);
+        }
+
+        ApprovalFlowConfig flowConfig = getFlowConfig(businessType);
         ApprovalFlowDefinition flowDefinition = flowEngine.parseFlowDefinition(flowConfig.getFlowDefinition());
 
         ApprovalFlowDefinition.ApprovalLevel firstLevel = flowDefinition.getLevels().get(0);
@@ -75,6 +84,25 @@ public class ApprovalWorkflowServiceImpl implements ApprovalWorkflowService {
         LambdaQueryWrapper<ApprovalRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ApprovalRecord::getApplicationId, applicationId)
                 .orderByAsc(ApprovalRecord::getApprovalLevel);
+        return recordMapper.selectList(wrapper);
+    }
+
+    @Override
+    public List<ApprovalRecord> getApprovalHistory(Integer businessType, Long applicationId) {
+        LambdaQueryWrapper<ApprovalRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ApprovalRecord::getApplicationId, applicationId);
+        if (businessType != null) {
+            if (businessType == 1 || businessType == 2) {
+                wrapper.and(condition -> condition
+                        .eq(ApprovalRecord::getBusinessType, businessType)
+                        .or()
+                        .isNull(ApprovalRecord::getBusinessType)
+                );
+            } else {
+                wrapper.eq(ApprovalRecord::getBusinessType, businessType);
+            }
+        }
+        wrapper.orderByAsc(ApprovalRecord::getApprovalLevel);
         return recordMapper.selectList(wrapper);
     }
 
@@ -118,7 +146,16 @@ public class ApprovalWorkflowServiceImpl implements ApprovalWorkflowService {
         flowConfig.setCreatedTime(LocalDateTime.now());
         flowConfig.setUpdatedTime(LocalDateTime.now());
 
-        if (businessType != null && businessType == 2) {
+        if (businessType != null && businessType == 3) {
+            flowConfig.setFlowCode("LAB_USAGE_APPLY");
+            flowConfig.setFlowName("实验室使用审批流程");
+            flowConfig.setFlowDefinition(
+                    "{\"levels\":[{\"level\":1,\"approverRole\":\"LAB_ROOM_MANAGER\",\"approverName\":\"实验室管理人员\"}," +
+                            "{\"level\":2,\"approverRole\":\"CENTER_DIRECTOR\",\"approverName\":\"中心主任\"}," +
+                            "{\"level\":3,\"approverRole\":\"DEPUTY_DEAN\",\"approverName\":\"分管院长\"}," +
+                            "{\"level\":4,\"approverRole\":\"DEAN\",\"approverName\":\"院长\"}]}"
+            );
+        } else if (businessType != null && businessType == 2) {
             flowConfig.setFlowCode("HAZARDOUS_APPLY");
             flowConfig.setFlowName("危化品领用审批流程");
             flowConfig.setFlowDefinition(
@@ -158,7 +195,10 @@ public class ApprovalWorkflowServiceImpl implements ApprovalWorkflowService {
                                                 String approverName, Integer currentLevel) {
         ApprovalRecord record = new ApprovalRecord();
         record.setApplicationId(request.getApplicationId());
-        record.setApplicationNo("APP" + request.getApplicationId());
+        String businessNo = request.getBusinessNo() == null ? "APP" + request.getApplicationId() : request.getBusinessNo();
+        record.setApplicationNo(businessNo);
+        record.setBusinessType(request.getBusinessType() == null ? 1 : request.getBusinessType());
+        record.setBusinessNo(businessNo);
         record.setApproverId(approverId);
         record.setApproverName(approverName);
         record.setApprovalLevel(currentLevel);
@@ -176,7 +216,7 @@ public class ApprovalWorkflowServiceImpl implements ApprovalWorkflowService {
 
         switch (approvalResult) {
             case 1:
-                return handleApprovalPass(request.getApplicationId(), currentLevel);
+                return handleApprovalPass(request.getApplicationId(), request.getBusinessType(), currentLevel);
             case 2:
                 return handleApprovalReject(request.getApplicationId());
             case 3:
@@ -190,10 +230,13 @@ public class ApprovalWorkflowServiceImpl implements ApprovalWorkflowService {
     /**
      * 处理审批通过
      */
-    private String handleApprovalPass(Long applicationId, Integer currentLevel) {
+    private String handleApprovalPass(Long applicationId, Integer businessType, Integer currentLevel) {
         log.info("审批通过: applicationId={}, currentLevel={}", applicationId, currentLevel);
 
-        if (currentLevel < 3) {
+        ApprovalFlowConfig flowConfig = getFlowConfig(businessType == null ? 1 : businessType);
+        ApprovalFlowDefinition flowDefinition = flowEngine.parseFlowDefinition(flowConfig.getFlowDefinition());
+        int levelCount = flowDefinition.getLevels() == null ? 0 : flowDefinition.getLevels().size();
+        if (currentLevel < levelCount) {
             return "NEXT_LEVEL";
         }
         return "APPROVED";
@@ -215,5 +258,17 @@ public class ApprovalWorkflowServiceImpl implements ApprovalWorkflowService {
                 applicationId, transferToUserId, currentLevel);
         return "TRANSFERRED";
     }
-}
 
+    private Integer resolveBusinessType(ApprovalContext context) {
+        if (context == null) {
+            return 1;
+        }
+        if (context.getBusinessType() != null) {
+            return context.getBusinessType();
+        }
+        if (context.getApplicationType() != null) {
+            return context.getApplicationType();
+        }
+        return 1;
+    }
+}

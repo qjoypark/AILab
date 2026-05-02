@@ -2,23 +2,27 @@
   <div class="usage-record-list">
     <el-card>
       <template #header>
-        <span>危化品使用记录</span>
+        <span>药品使用</span>
       </template>
 
-      <!-- 搜索表单 -->
       <el-form :model="queryForm" inline>
-        <el-form-item label="关键词">
-          <el-input v-model="queryForm.keyword" class="query-keyword-input" placeholder="药品名称/用户名" clearable />
+        <el-form-item label="关键字">
+          <el-input
+            v-model="queryForm.keyword"
+            class="query-keyword-input"
+            placeholder="申请单号/领用人/用途/地点"
+            clearable
+          />
         </el-form-item>
         <el-form-item label="状态">
           <el-select
             v-model="queryForm.status"
-            v-adaptive-select-width="['全部', '使用中', '已归还']"
+            v-adaptive-select-width="['全部', '领用中', '已归还']"
             placeholder="请选择"
             clearable
           >
             <el-option label="全部" :value="-1" />
-            <el-option label="使用中" :value="1" />
+            <el-option label="领用中" :value="1" />
             <el-option label="已归还" :value="2" />
           </el-select>
         </el-form-item>
@@ -40,28 +44,31 @@
         </el-form-item>
       </el-form>
 
-      <!-- 使用记录列表 -->
       <el-table :data="recordList" border stripe v-loading="loading">
-        <el-table-column prop="materialName" label="药品名称" min-width="150" />
-        <el-table-column prop="userName" label="使用人" width="100" />
-        <el-table-column prop="receivedQuantity" label="领用数量" width="100" align="right" />
-        <el-table-column prop="actualUsedQuantity" label="实际使用" width="100" align="right">
+        <el-table-column prop="applicationNo" label="领用单号" width="180">
           <template #default="{ row }">
-            {{ row.actualUsedQuantity || '-' }}
+            {{ row.applicationNo || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="materialName" label="药品名称" min-width="160">
+          <template #default="{ row }">
+            {{ row.materialName || `药品#${row.materialId}` }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="userName" label="领用人" width="120" />
+        <el-table-column prop="receivedQuantity" label="领用数量" width="100" align="right" />
+        <el-table-column prop="actualUsedQuantity" label="消耗数量" width="100" align="right">
+          <template #default="{ row }">
+            {{ row.actualUsedQuantity ?? '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="returnedQuantity" label="归还数量" width="100" align="right">
           <template #default="{ row }">
-            {{ row.returnedQuantity || '-' }}
+            {{ row.returnedQuantity ?? '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="wasteQuantity" label="废弃数量" width="100" align="right">
-          <template #default="{ row }">
-            {{ row.wasteQuantity || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="usagePurpose" label="用途" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="usageLocation" label="使用地点" width="120" />
+        <el-table-column prop="usagePurpose" label="用途说明" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="usageLocation" label="使用地点" width="140" />
         <el-table-column prop="receiveDate" label="领用日期" width="120" />
         <el-table-column prop="returnDate" label="归还日期" width="120">
           <template #default="{ row }">
@@ -70,11 +77,11 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 1" type="warning">使用中</el-tag>
+            <el-tag v-if="row.status === 1" type="warning">领用中</el-tag>
             <el-tag v-else type="success">已归还</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="row.status === 1"
@@ -89,7 +96,6 @@
         </el-table-column>
       </el-table>
 
-      <!-- 分页 -->
       <el-pagination
         v-model:current-page="queryForm.page"
         v-model:page-size="queryForm.size"
@@ -101,56 +107,33 @@
       />
     </el-card>
 
-    <!-- 归还对话框 -->
     <el-dialog
       v-model="returnDialogVisible"
-      title="危化品归还"
-      width="600px"
+      title="归还核实"
+      width="620px"
       @close="handleDialogClose"
     >
       <el-descriptions :column="2" border style="margin-bottom: 20px">
-        <el-descriptions-item label="药品名称">{{ currentRecord?.materialName }}</el-descriptions-item>
-        <el-descriptions-item label="使用人">{{ currentRecord?.userName }}</el-descriptions-item>
-        <el-descriptions-item label="领用数量">{{ currentRecord?.receivedQuantity }}</el-descriptions-item>
-        <el-descriptions-item label="领用日期">{{ currentRecord?.receiveDate }}</el-descriptions-item>
-        <el-descriptions-item label="用途" :span="2">{{ currentRecord?.usagePurpose }}</el-descriptions-item>
+        <el-descriptions-item label="领用单号">{{ currentRecord?.applicationNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="药品名称">{{ currentRecord?.materialName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="领用人">{{ currentRecord?.userName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="领用数量">{{ currentRecord?.receivedQuantity ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="用途说明" :span="2">{{ currentRecord?.usagePurpose || '-' }}</el-descriptions-item>
       </el-descriptions>
 
-      <el-form
-        ref="formRef"
-        :model="returnForm"
-        :rules="rules"
-        label-width="120px"
-      >
-        <el-form-item label="实际使用量" prop="actualUsedQuantity">
-          <el-input-number
-            v-model="returnForm.actualUsedQuantity"
-            :min="0"
-            :max="currentRecord?.receivedQuantity"
-            :precision="2"
-            style="width: 100%"
-          />
-        </el-form-item>
+      <el-form ref="formRef" :model="returnForm" :rules="rules" label-width="120px">
         <el-form-item label="归还数量" prop="returnedQuantity">
           <el-input-number
             v-model="returnForm.returnedQuantity"
             :min="0"
-            :max="remainingQuantity"
+            :max="currentRecord?.receivedQuantity ?? 0"
             :precision="2"
             style="width: 100%"
           />
-          <div style="color: #909399; font-size: 12px; margin-top: 5px">
-            剩余可归还: {{ remainingQuantity.toFixed(2) }}
-          </div>
         </el-form-item>
-        <el-form-item label="废弃数量" prop="wasteQuantity">
-          <el-input-number
-            v-model="returnForm.wasteQuantity"
-            :min="0"
-            :max="remainingQuantity"
-            :precision="2"
-            style="width: 100%"
-          />
+        <el-form-item label="自动计入消耗">
+          <el-input :model-value="consumedQuantityText" readonly />
+          <div class="hint-text">默认全归还；减少的数量自动计入“消耗数量”。</div>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="returnForm.remark" type="textarea" :rows="3" />
@@ -159,26 +142,26 @@
 
       <template #footer>
         <el-button @click="returnDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitReturn" :loading="submitting">确定归还</el-button>
+        <el-button type="primary" @click="handleSubmitReturn" :loading="submitting">确认归还</el-button>
       </template>
     </el-dialog>
 
-    <!-- 查看详情对话框 -->
     <el-dialog v-model="viewDialogVisible" title="使用记录详情" width="700px">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="药品名称">{{ currentRecord?.materialName }}</el-descriptions-item>
-        <el-descriptions-item label="使用人">{{ currentRecord?.userName }}</el-descriptions-item>
-        <el-descriptions-item label="领用数量">{{ currentRecord?.receivedQuantity }}</el-descriptions-item>
-        <el-descriptions-item label="实际使用量">{{ currentRecord?.actualUsedQuantity || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="归还数量">{{ currentRecord?.returnedQuantity || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="废弃数量">{{ currentRecord?.wasteQuantity || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="用途" :span="2">{{ currentRecord?.usagePurpose }}</el-descriptions-item>
-        <el-descriptions-item label="使用地点">{{ currentRecord?.usageLocation }}</el-descriptions-item>
+        <el-descriptions-item label="领用单号">{{ currentRecord?.applicationNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="药品名称">{{ currentRecord?.materialName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="领用人">{{ currentRecord?.userName || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag v-if="currentRecord?.status === 1" type="warning">使用中</el-tag>
+          <el-tag v-if="currentRecord?.status === 1" type="warning">领用中</el-tag>
           <el-tag v-else type="success">已归还</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="领用日期">{{ currentRecord?.receiveDate }}</el-descriptions-item>
+        <el-descriptions-item label="领用数量">{{ currentRecord?.receivedQuantity ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="消耗数量">{{ currentRecord?.actualUsedQuantity ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="归还数量">{{ currentRecord?.returnedQuantity ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="废弃数量">{{ currentRecord?.wasteQuantity ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="用途说明" :span="2">{{ currentRecord?.usagePurpose || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="使用地点">{{ currentRecord?.usageLocation || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="领用日期">{{ currentRecord?.receiveDate || '-' }}</el-descriptions-item>
         <el-descriptions-item label="归还日期">{{ currentRecord?.returnDate || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
@@ -186,10 +169,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { approvalApi } from '@/api/approval'
-import type { HazardousUsageRecord, HazardousReturnRequest } from '@/types/approval'
+import type { HazardousReturnRequest, HazardousUsageRecord } from '@/types/approval'
+
+interface ReturnFormState {
+  returnedQuantity: number
+  remark: string
+}
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -208,34 +196,45 @@ const queryForm = reactive({
   size: 10
 })
 
-const returnForm = reactive<HazardousReturnRequest>({
-  actualUsedQuantity: 0,
+const returnForm = reactive<ReturnFormState>({
   returnedQuantity: 0,
-  wasteQuantity: 0,
   remark: ''
 })
 
-const remainingQuantity = computed(() => {
+const consumedQuantity = computed(() => {
   if (!currentRecord.value) return 0
-  return currentRecord.value.receivedQuantity - returnForm.actualUsedQuantity
+  const received = Number(currentRecord.value.receivedQuantity ?? 0)
+  const returned = Number(returnForm.returnedQuantity ?? 0)
+  const consumed = received - returned
+  return consumed > 0 ? consumed : 0
 })
 
+const consumedQuantityText = computed(() => consumedQuantity.value.toFixed(2))
+
 const rules: FormRules = {
-  actualUsedQuantity: [
-    { required: true, message: '请输入实际使用量', trigger: 'blur' },
+  returnedQuantity: [
+    { required: true, message: '请输入归还数量', trigger: 'blur' },
     {
-      validator: (_rule, value, callback) => {
-        if (value + returnForm.returnedQuantity + returnForm.wasteQuantity !== currentRecord.value?.receivedQuantity) {
-          callback(new Error('实际使用量 + 归还数量 + 废弃数量 必须等于领用数量'))
-        } else {
-          callback()
+      validator: (_rule, value: number, callback) => {
+        const received = Number(currentRecord.value?.receivedQuantity ?? 0)
+        const numericValue = Number(value)
+        if (Number.isNaN(numericValue)) {
+          callback(new Error('归还数量格式不正确'))
+          return
         }
+        if (numericValue < 0) {
+          callback(new Error('归还数量不能小于 0'))
+          return
+        }
+        if (numericValue > received) {
+          callback(new Error('归还数量不能大于领用数量'))
+          return
+        }
+        callback()
       },
       trigger: 'blur'
     }
-  ],
-  returnedQuantity: [{ required: true, message: '请输入归还数量', trigger: 'blur' }],
-  wasteQuantity: [{ required: true, message: '请输入废弃数量', trigger: 'blur' }]
+  ]
 }
 
 const loadRecordList = async () => {
@@ -276,9 +275,7 @@ const handleReset = () => {
 const handleReturn = (row: HazardousUsageRecord) => {
   currentRecord.value = row
   Object.assign(returnForm, {
-    actualUsedQuantity: row.receivedQuantity,
-    returnedQuantity: 0,
-    wasteQuantity: 0,
+    returnedQuantity: Number(row.receivedQuantity ?? 0),
     remark: ''
   })
   returnDialogVisible.value = true
@@ -286,13 +283,19 @@ const handleReturn = (row: HazardousUsageRecord) => {
 
 const handleSubmitReturn = async () => {
   if (!formRef.value || !currentRecord.value) return
-  
-  await formRef.value.validate(async (valid) => {
+
+  await formRef.value.validate(async valid => {
     if (!valid) return
-    
+
     submitting.value = true
     try {
-      await approvalApi.returnHazardousMaterial(currentRecord.value!.id, returnForm)
+      const payload: HazardousReturnRequest = {
+        returnedQuantity: Number(returnForm.returnedQuantity),
+        actualUsedQuantity: Number(consumedQuantity.value),
+        wasteQuantity: 0,
+        remark: returnForm.remark
+      }
+      await approvalApi.returnHazardousMaterial(currentRecord.value.id, payload)
       ElMessage.success('归还成功')
       returnDialogVisible.value = false
       loadRecordList()
@@ -321,6 +324,12 @@ onMounted(() => {
 <style scoped>
 .usage-record-list {
   padding: 20px;
+}
+
+.hint-text {
+  color: #909399;
+  font-size: 12px;
+  margin-top: 6px;
 }
 
 .el-pagination {

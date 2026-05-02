@@ -45,7 +45,7 @@ spring:
         - id: approval-service
           uri: lb://lab-service-approval
           predicates:
-            - Path=/api/v1/applications/**,/api/v1/hazardous/**
+            - Path=/api/v1/applications/**,/api/v1/hazardous/**,/api/v1/lab-rooms/**,/api/v1/lab-usage-applications/**
   redis:
     host: localhost
     port: 6379

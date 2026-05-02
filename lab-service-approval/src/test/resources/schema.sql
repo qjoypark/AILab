@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS approval_flow_config (
 -- 审批记录表
 CREATE TABLE IF NOT EXISTS approval_record (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    business_type INT DEFAULT 1,
+    business_no VARCHAR(50),
     application_id BIGINT NOT NULL,
     application_no VARCHAR(50) NOT NULL,
     approver_id BIGINT NOT NULL,

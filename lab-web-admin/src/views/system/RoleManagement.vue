@@ -182,6 +182,16 @@ const permissionTemplateMap: Record<string, string[]> = {
     'application:approve',
     'hazardous:usage:list',
     'hazardous:ledger:view',
+    'lab-room:list',
+    'lab-room:create',
+    'lab-room:update',
+    'lab-room:delete',
+    'lab-room:manager:update',
+    'lab-usage:list',
+    'lab-usage:create',
+    'lab-usage:cancel',
+    'lab-usage:approve',
+    'lab-usage:schedule:view',
     'alert:list'
   ],
   CENTER_ADMIN: [
@@ -208,6 +218,10 @@ const permissionTemplateMap: Record<string, string[]> = {
     'application:approve',
     'hazardous:usage:list',
     'hazardous:ledger:view',
+    'lab-room:list',
+    'lab-usage:list',
+    'lab-usage:approve',
+    'lab-usage:schedule:view',
     'alert:list'
   ],
   LAB_MANAGER: [
@@ -226,6 +240,10 @@ const permissionTemplateMap: Record<string, string[]> = {
     'application:approve',
     'hazardous:usage:list',
     'hazardous:ledger:view',
+    'lab-room:list',
+    'lab-usage:list',
+    'lab-usage:approve',
+    'lab-usage:schedule:view',
     'alert:list'
   ],
   EQUIPMENT_ADMIN: [
@@ -248,6 +266,9 @@ const permissionTemplateMap: Record<string, string[]> = {
     'application:approve',
     'hazardous:usage:list',
     'hazardous:ledger:view',
+    'lab-room:list',
+    'lab-usage:list',
+    'lab-usage:schedule:view',
     'alert:list'
   ],
   TEACHER: [
@@ -256,7 +277,12 @@ const permissionTemplateMap: Record<string, string[]> = {
     'application:list',
     'application:approve',
     'hazardous:usage:list',
-    'hazardous:ledger:view'
+    'hazardous:ledger:view',
+    'lab-room:list',
+    'lab-usage:list',
+    'lab-usage:create',
+    'lab-usage:cancel',
+    'lab-usage:schedule:view'
   ],
   STUDENT: [
     'material:list',

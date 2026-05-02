@@ -8,6 +8,22 @@
 
 ## 启动步骤
 
+### 推荐：一键启动
+
+Windows 开发环境可以直接运行：
+
+```powershell
+.\start-all.ps1
+```
+
+脚本会启动 Docker 基础设施、网关、用户服务、物料服务、库存服务、审批服务和前端。需要重启本地已运行服务时可以使用：
+
+```powershell
+.\start-all.ps1 -RestartServices
+```
+
+以下步骤适合需要手动排查单个服务时使用。
+
 ### 1. 启动基础设施
 
 首先确保Docker Desktop已启动，然后运行：
@@ -60,7 +76,7 @@ cd lab-web-admin && npm run dev
 ### 登录返回500错误
 - 检查后端服务是否全部启动
 - 检查Nacos是否正常运行
-- 检查MySQL数据库是否已初始化
+- 检查MySQL数据库是否已初始化，特别是 `sql/17_lab_usage_tables.sql` 和 `sql/18_lab_usage_approval_config.sql` 是否已执行
 - 查看后端日志确认具体错误
 
 ### 服务无法注册到Nacos

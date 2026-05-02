@@ -56,6 +56,18 @@ docker-compose up -d
 
 等待所有服务启动完成（约1-2分钟）。
 
+Windows 开发环境也可以直接使用一键脚本启动基础设施、后端服务和前端：
+
+```powershell
+.\start-all.ps1
+```
+
+如需强制重启已占用端口的本地服务：
+
+```powershell
+.\start-all.ps1 -RestartServices
+```
+
 ### 2. 验证服务状态
 
 - MySQL: `mysql -h localhost -P 3306 -u root -p` (密码: root)
@@ -70,10 +82,23 @@ docker-compose up -d
 
 ```bash
 mysql -h localhost -P 3306 -u root -p < sql/01_create_database.sql
-mysql -h localhost -P 3306 -u root -p lab_management < sql/02_user_tables.sql
-mysql -h localhost -P 3306 -u root -p lab_management < sql/03_material_tables.sql
-# ... 依次执行其他SQL文件
+for f in sql/*.sql; do
+  [ "$(basename "$f")" = "01_create_database.sql" ] && continue
+  mysql -h localhost -P 3306 -u root -p lab_management < "$f"
+done
 ```
+
+在 PowerShell 中可以使用：
+
+```powershell
+Get-Content .\sql\01_create_database.sql | mysql -h localhost -P 3306 -u root -p
+Get-ChildItem sql/*.sql |
+  Where-Object { $_.Name -ne '01_create_database.sql' } |
+  Sort-Object Name |
+  ForEach-Object { Get-Content $_.FullName | mysql -h localhost -P 3306 -u root -p lab_management }
+```
+
+请确认 `sql/17_lab_usage_tables.sql` 和 `sql/18_lab_usage_approval_config.sql` 已执行；它们分别提供实验室使用管理表、实验室审批流程、权限点和角色权限回填。
 
 ### 4. 编译项目
 

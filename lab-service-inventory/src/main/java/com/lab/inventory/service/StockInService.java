@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lab.inventory.dto.HazardousReturnStockInRequest;
 import com.lab.inventory.dto.StockInDTO;
 import com.lab.inventory.entity.StockIn;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 
@@ -51,4 +52,20 @@ public interface StockInService {
      * @return 自动生成的入库单ID
      */
     Long hazardousReturnStockIn(HazardousReturnStockInRequest request);
+
+    /**
+     * 下载入库导入模板
+     *
+     * @return Excel模板字节数组
+     */
+    byte[] generateStockInImportTemplate();
+
+    /**
+     * 从Excel解析入库单预览数据（不落库）
+     *
+     * @param file Excel文件
+     * @param operatorId 经手人ID（可为空）
+     * @return 入库单预览DTO
+     */
+    StockInDTO importStockInFromExcel(MultipartFile file, Long operatorId);
 }

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lab.common.exception.BusinessException;
 import com.lab.common.result.ResultCode;
 import com.lab.user.dto.UserDTO;
+import com.lab.user.dto.UserOptionDTO;
 import com.lab.user.entity.SysUser;
 import com.lab.user.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +60,35 @@ public class UserService {
         }
 
         return userMapper.selectPage(pageParam, wrapper);
+    }
+
+    public Page<UserOptionDTO> listSelectableUsers(int page,
+                                                  int size,
+                                                  String keyword,
+                                                  Integer userType,
+                                                  Integer status) {
+        Page<SysUser> pageParam = new Page<>(page, size);
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(query -> query.like(SysUser::getUsername, keyword)
+                    .or().like(SysUser::getRealName, keyword)
+                    .or().like(SysUser::getDepartment, keyword));
+        }
+        if (userType != null) {
+            wrapper.eq(SysUser::getUserType, userType);
+        }
+        if (status != null) {
+            wrapper.eq(SysUser::getStatus, status);
+        }
+        wrapper.orderByAsc(SysUser::getRealName).orderByAsc(SysUser::getUsername);
+
+        Page<SysUser> userPage = userMapper.selectPage(pageParam, wrapper);
+        Page<UserOptionDTO> result = new Page<>(userPage.getCurrent(), userPage.getSize(), userPage.getTotal());
+        result.setRecords(userPage.getRecords().stream()
+                .map(UserOptionDTO::fromEntity)
+                .toList());
+        return result;
     }
 
     /**

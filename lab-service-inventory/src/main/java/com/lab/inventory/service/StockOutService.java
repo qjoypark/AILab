@@ -61,4 +61,12 @@ public interface StockOutService {
      * @return 出库单摘要列表
      */
     List<StockOutOrderSummaryDTO> listStockOutByApplicationId(Long applicationId);
+
+    /**
+     * 生成电子出库单PDF
+     *
+     * @param id 出库单ID
+     * @return PDF字节数组
+     */
+    byte[] generateStockOutPdf(Long id);
 }
